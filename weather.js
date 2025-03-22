@@ -10,7 +10,7 @@ async function customRequest(url, method = "GET", body = null, headers = {}) {
   const options = {
     method,
     headers: requestHeaders,
-    // mode: "no-cors", // 요청 모드
+    mode: "no-cors", // 요청 모드
     // credentials: "include", // 쿠키 포함 여부
   };
 
