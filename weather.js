@@ -3,7 +3,6 @@ async function customRequest(url, method = "GET", body = null, headers = {}) {
   // 기본 헤더 설정
   const requestHeaders = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
     ...headers,
   };
 
@@ -65,16 +64,18 @@ function getUrlWithParams(url, params) {
 // Constants
 
 // request
+const proxyUrl = "https://cors-anywhere.herokuapp.com/";
 const reqUrl =
   "https://www.weather.go.kr/w/wnuri-fct2021/main/current-weather.do";
 const reqData = {
   code: 1162069500,
   unit: encodeURI("m/s"),
+  aws: "N",
   lat: 37.4882034,
   lon: 126.9276843,
 };
 
-customRequest(getUrlWithParams(reqUrl, reqData))
+customRequest(getUrlWithParams(proxyUrl + reqUrl, reqData))
   .then((data) => {
     console.log(data);
   })
