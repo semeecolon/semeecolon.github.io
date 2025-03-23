@@ -2,11 +2,26 @@
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script src="./weather.js?ver=202503230413"></script>
+    <script language="javascript">
+      let seconds = 300;
+
+      const timer = setInterval(() => {
+        seconds--;
+        document.getElementById("timer").innerHTML = seconds + "초 후 새로고침";
+        if (seconds <= 0) {
+          clearInterval(timer);
+          location.reload();
+        }
+      }, 1000);
+    </script>
 
     <title>날씨 테스트</title>
   </head>
 
   <body>
+    <div>
+      <span id="timer"></span>
+    </div>
     <div id="location"></div>
     <div id="dong"></div>
     <br />
