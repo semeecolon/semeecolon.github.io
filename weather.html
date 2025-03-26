@@ -1,20 +1,23 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script src="./constants.js"></script>
     <script src="./default.js"></script>
     <script src="./grid_index.js"></script>
     <script src="./grid_xy_conv.js"></script>
+    <script src="./date.js"></script>
+    <script src="./analyzeResp.js"></script>
     <script language="javascript">
       let seconds = 300;
 
-      // const timer = setInterval(() => {
-      //   seconds--;
-      //   document.getElementById("timer").innerHTML = seconds + "초 후 새로고침";
-      //   if (seconds <= 0) {
-      //     clearInterval(timer);
-      //     location.reload();
-      //   }
-      // }, 1000);
+      const timer = setInterval(() => {
+        seconds--;
+        document.getElementById("timer").innerHTML = seconds + "초 후 새로고침";
+        if (seconds <= 0) {
+          clearInterval(timer);
+          location.reload();
+        }
+      }, 1000);
 
       const weatherApp = async () => {
         // 0. 지역정보 인덱싱
@@ -54,67 +57,68 @@
             }) / 정확도: ${dongInfo.distance.toFixed(3)} km`
           : "없음";
         // "지역정보: " + dongInfo ? dongInfo.region.regionCode : "";
-        dongElement.innerText = `지역정보: ${t}`;
+        dongElement.innerText = `지역 정보: ${t}`;
+
+        // 4. 날씨 정보
+        const ultraSrtNcstDate = getUltraSrtDate();
+
+        const ultraSrtNcstParams = {
+          serviceKey,
+          pageNo: 1,
+          numOfRows: 1000,
+          dataType: "JSON",
+          base_date: ultraSrtNcstDate.now.yyyyMMdd,
+          base_time: ultraSrtNcstDate.now.HHmm,
+          nx: gridXY.x,
+          ny: gridXY.y,
+        };
+        // console.log("초단기 실황 요청 파라미터", ultraSrtNcstParams);
+
+        // 현재
+        const ultraSrtNcstUrl = getUrlWithParams(
+          endpoint.ultraSrtNcst,
+          ultraSrtNcstParams
+        );
+        // console.log("초단기 실황 요청 URL", ultraSrtNcstUrl);
+        const ultraSrtNcstResponse = await customRequest(ultraSrtNcstUrl);
+        // console.log("초단기 실황 응답", ultraSrtNcstResponse);
+
+        const { result, error } = analyzeUltraSrtNcst(ultraSrtNcstResponse);
+        console.log("분석 결과", result, error);
+
+        // 어제
+        // ultraSrtNcstParams.base_date = ultraSrtNcstDate.yesterday.yyyyMMdd;
+        // ultraSrtNcstParams.base_time = ultraSrtNcstDate.yesterday.HHmm;
+        // const ultraSrtNcstUrlYesterday = getUrlWithParams(
+        //   "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst",
+        //   ultraSrtNcstParams
+        // );
+        // console.log("초단기 실황 어제 요청 URL", ultraSrtNcstUrlYesterday);
+        // const ultraSrtNcstResponseYesterday = await customRequest(
+        //   ultraSrtNcstUrlYesterday
+        // );
+        // console.log("초단기 실황 어제 응답", ultraSrtNcstResponseYesterday);
+
+        const weatherElement = document.getElementById("weather");
+        let s = "<p>날씨 정보</p>";
+
+        if (!!error) {
+          s += `날씨 정보를 가져오는 중 오류가 발생했습니다.<br />${error}`;
+          weatherElement.innerHTML = s;
+          return;
+        }
+
+        s += "<ul>";
+        result.forEach((element) => {
+          s += `<li>${element.name} - ${element.organizedObsrValue}</li>`;
+        });
+        s += `</ul>`;
+
+        weatherElement.innerHTML = s;
       };
 
       document.addEventListener("DOMContentLoaded", weatherApp);
     </script>
-
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/slick.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/basic.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/common-ui.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/common-ui-mobile.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/common-ui-new-mobile.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- 2 -->
-    <!-- <link
-      rel="stylesheet"
-      href="https://www.weather.go.kr/w/resources/lib/kmap/legend.css?ver=2025021401"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css-2021/weather-local.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/bangjae/bangjae.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      rel="stylesheet"
-      type="text/css"
-      href="https://www.weather.go.kr/m/popup_layer/m_popup_wnuri.css?ver=2025021401"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css/drop-banner.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
-    <!-- <link
-      href="https://www.weather.go.kr/w/resources/css/layer-banner3.css?ver=2025021401"
-      rel="stylesheet"
-      type="text/css"
-    /> -->
 
     <title>날씨 테스트</title>
   </head>
