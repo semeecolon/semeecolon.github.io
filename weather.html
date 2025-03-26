@@ -1,18 +1,63 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <script src="./weather.js?ver=202503230413"></script>
+    <script src="./default.js"></script>
+    <script src="./grid_index.js"></script>
+    <script src="./grid_xy_conv.js"></script>
     <script language="javascript">
       let seconds = 300;
 
-      const timer = setInterval(() => {
-        seconds--;
-        document.getElementById("timer").innerHTML = seconds + "초 후 새로고침";
-        if (seconds <= 0) {
-          clearInterval(timer);
-          location.reload();
+      // const timer = setInterval(() => {
+      //   seconds--;
+      //   document.getElementById("timer").innerHTML = seconds + "초 후 새로고침";
+      //   if (seconds <= 0) {
+      //     clearInterval(timer);
+      //     location.reload();
+      //   }
+      // }, 1000);
+
+      const weatherApp = async () => {
+        // 0. 지역정보 인덱싱
+        const indexedLocationData = await dataIndex("gridXY.json");
+        // console.log(indexedLocationData);
+
+        // 1.위치정보 가져오기
+        const locationElement = document.getElementById("location");
+        const locationInfo = await getCurrentLocation();
+        console.log("위치정보", locationInfo);
+        if (locationInfo.error) {
+          locationInfo.lat = 37.4882034;
+          locationInfo.lon = 126.9276843;
+          locationElement.innerText = `위치 정보 획득 실패(기본 위치 사용): Lat-${locationInfo.lat}, Lon-${locationInfo.lon}`;
+        } else {
+          locationElement.innerText = `위치 정보: Lat-${locationInfo.lat}, Lon-${locationInfo.lon}`;
         }
-      }, 1000);
+
+        // 2. grid xy 변환
+        const gridXY = dfs_xy_conv("toXY", locationInfo.lat, locationInfo.lon);
+        console.log("XY좌표", gridXY);
+        locationElement.innerText += `, Grid X-${gridXY.x}, Y-${gridXY.y}`;
+
+        // 3. 지역정보
+        const dongElement = document.getElementById("dong");
+        // const locationCandidates =
+        //   indexedLocationData.get(`${gridXY.x}_${gridXY.y}`) || [];
+        // console.log(locationCandidates);
+        // dongElement.innerText = `지역정보(${locationCandidates.length}): `;
+        const dongInfo = findNearRegionByLocation(gridXY, indexedLocationData);
+        console.log("지역(동) 정보", dongInfo);
+        let t = dongInfo
+          ? `${dongInfo.region.level1} ${dongInfo.region.level2} ${
+              dongInfo.region.level3
+            } (${
+              dongInfo.region.regionCode
+            }) / 정확도: ${dongInfo.distance.toFixed(3)} km`
+          : "없음";
+        // "지역정보: " + dongInfo ? dongInfo.region.regionCode : "";
+        dongElement.innerText = `지역정보: ${t}`;
+      };
+
+      document.addEventListener("DOMContentLoaded", weatherApp);
     </script>
 
     <!-- <link
@@ -20,26 +65,26 @@
       rel="stylesheet"
       type="text/css"
     /> -->
-    <link
+    <!-- <link
       href="https://www.weather.go.kr/w/resources/css-2021/basic.css?ver=2025021401"
       rel="stylesheet"
       type="text/css"
-    />
-    <link
+    /> -->
+    <!-- <link
       href="https://www.weather.go.kr/w/resources/css-2021/common-ui.css?ver=2025021401"
       rel="stylesheet"
       type="text/css"
-    />
+    /> -->
     <!-- <link
       href="https://www.weather.go.kr/w/resources/css-2021/common-ui-mobile.css?ver=2025021401"
       rel="stylesheet"
       type="text/css"
     /> -->
-    <link
+    <!-- <link
       href="https://www.weather.go.kr/w/resources/css-2021/common-ui-new-mobile.css?ver=2025021401"
       rel="stylesheet"
       type="text/css"
-    />
+    /> -->
     <!-- 2 -->
     <!-- <link
       rel="stylesheet"
