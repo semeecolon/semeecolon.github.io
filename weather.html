@@ -123,6 +123,10 @@
         s += "</table>";
 
         weatherElement.innerHTML = s;
+
+        // 5. 업데이트
+        const lastUpdateElement = document.getElementById("lastUpdate");
+        lastUpdateElement.innerText += ` ${new Date().toLocaleString()}`;
       };
 
       document.addEventListener("DOMContentLoaded", weatherApp);
@@ -139,5 +143,6 @@
     <div id="dong"></div>
     <br />
     <div id="weather"></div>
+    <div id="lastUpdate" style="margin-top: 25px">마지막 업데이트:</div>
   </body>
 </html>
