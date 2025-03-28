@@ -100,7 +100,13 @@
         // console.log("초단기 실황 어제 응답", ultraSrtNcstResponseYesterday);
 
         const weatherElement = document.getElementById("weather");
+
         let s = "<p>날씨 정보</p>";
+        s += "<table>";
+        s += "<tr>";
+        s += "<th>구분</th>";
+        s += "<th>값</th>";
+        s += "</tr>";
 
         if (!!error) {
           s += `날씨 정보를 가져오는 중 오류가 발생했습니다.<br />${error}`;
@@ -108,11 +114,13 @@
           return;
         }
 
-        s += "<ul>";
         result.forEach((element) => {
-          s += `<li>${element.name} - ${element.organizedObsrValue}</li>`;
+          s += "<tr style='text-align: center;'>";
+          s += "<td>" + element.name + "</td>";
+          s += "<td>" + element.organizedObsrValue + "</td>";
+          s += "</tr>";
         });
-        s += `</ul>`;
+        s += "</table>";
 
         weatherElement.innerHTML = s;
       };
