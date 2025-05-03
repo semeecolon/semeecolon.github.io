@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seeking Alpha 바로가기</title>
+    <script src="./sa.js"></script>
+    <script language="javascript">
+      const goTo = (section) => {
+        const stockCode = getSelectedValue();
+        if (!stockCode) {
+          return alert("종목을 선택하세요.");
+        }
+
+        // yield
+        // https://seekingalpha.com/symbol/SCHD/dividends/yield
+
+        // dividend-growth
+        // https://seekingalpha.com/symbol/SCHD/dividends/dividend-growth
+
+        // history
+        // https://seekingalpha.com/symbol/SCHD/dividends/history
+
+        const url = `https://seekingalpha.com/symbol/${stockCode}/dividends/${section}`;
+        window.open(url, "_blank");
+      };
+      const getSelectedValue = () => {
+        const selectedValue = document.querySelector(
+          'input[name="section"]:checked'
+        );
+        return selectedValue?.value ?? null;
+      };
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Seeking Alpha 바로가기</h2>
+      <div class="button-group">
+        <button onclick="goTo('yield')">배당률</button>
+        <button onclick="goTo('dividend-growth')">배당성장률</button>
+        <button onclick="goTo('history')">배당이력</button>
+      </div>
+    </div>
+    <div class="container">
+      <h2>종목 선택</h2>
+      <table id="stock-table" style="border: dotted 1px #000">
+        <thead>
+          <tr>
+            <th>종목</th>
+            <th>ETF</th>
+          </tr>
+        </thead>
+        <tbody id="stock-list">
+          <tr style="vertical-align: top">
+            <td>
+              <div>
+                <input type="radio" id="inst1" name="section" value="O" />
+                <label for="inst1">[O] 리얼티인컴</label>
+              </div>
+              <div>
+                <input type="radio" id="inst2" name="section" value="MO" />
+                <label for="inst2">[MO] 알트리아</label>
+              </div>
+              <div>
+                <input type="radio" id="inst3" name="section" value="PFE" />
+                <label for="inst3">[PFE] 화이자</label>
+              </div>
+              <div>
+                <input type="radio" id="inst4" name="section" value="PEP" />
+                <label for="inst4">[PEP] 펩시코</label>
+              </div>
+              <div>
+                <input type="radio" id="inst5" name="section" value="KO" />
+                <label for="inst5">[KO] 코카콜라</label>
+              </div>
+              <div>
+                <input type="radio" id="inst6" name="section" value="IIPR" />
+                <label for="inst6">[IIPR] 이노.. 인더.. 프라..</label>
+              </div>
+              <div>
+                <input type="radio" id="inst7" name="section" value="DPZ" />
+                <label for="inst7">[DPZ] 도미노피자</label>
+              </div>
+              <div>
+                <input type="radio" id="inst8" name="section" value="ROL" />
+                <label for="inst8">[ROL] 롤린스</label>
+              </div>
+              <div>
+                <input type="radio" id="inst9" name="section" value="LOW" />
+                <label for="inst9">[LOW] 로우스</label>
+              </div>
+              <div>
+                <input type="radio" id="inst10" name="section" value="WM" />
+                <label for="inst10">[WM] 웨이스트 매니지먼트</label>
+              </div>
+            </td>
+            <td>
+              <div>
+                <input type="radio" id="etf1" name="section" value="SCHD" />
+                <label for="etf1">SCHD</label>
+              </div>
+              <div>
+                <input type="radio" id="etf2" name="section" value="VIG" />
+                <label for="etf2">VIG</label>
+              </div>
+              <div>
+                <input type="radio" id="etf3" name="section" value="JEPI" />
+                <label for="etf3">JEPI</label>
+              </div>
+              <div>
+                <input type="radio" id="etf4" name="section" value="GPIX" />
+                <label for="etf4">GPIX</label>
+              </div>
+              <div>
+                <input type="radio" id="etf5" name="section" value="JEPQ" />
+                <label for="etf5">JEPQ</label>
+              </div>
+              <div>
+                <input type="radio" id="etf6" name="section" value="GPIQ" />
+                <label for="etf6">GPIQ</label>
+              </div>
+              <div>
+                <input type="radio" id="etf7" name="section" value="DGRO" />
+                <label for="etf7">DGRO</label>
+              </div>
+              <div>
+                <input type="radio" id="etf8" name="section" value="DGRW" />
+                <label for="etf8">DGRW</label>
+              </div>
+              <div>
+                <input type="radio" id="etf9" name="section" value="DGRE" />
+                <label for="etf9">DGRE</label>
+              </div>
+              <div>
+                <input type="radio" id="etf10" name="section" value="TLT" />
+                <label for="etf10">TLT</label>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>
