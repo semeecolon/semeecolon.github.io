@@ -30,5 +30,19 @@ const getUltraSrtDate = () => {
   yesterday.setHours(yesterday.getHours() - 23);
   yesterday.setMinutes(yesterday.getMinutes() - 59);
 
-  return { now: formatDate(now), yesterday: formatDate(yesterday) };
+  return {
+    now: formatDate(now),
+    yesterday: formatDate(yesterday),
+    nowMM: now.getMonth() + 1,
+  };
+};
+
+// 계절구분
+const getSeason = () => {
+  const month = new Date().getMonth() + 1;
+  if (month >= 5 && month <= 9) {
+    return "S";
+  } else {
+    return "W";
+  }
 };

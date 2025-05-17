@@ -73,41 +73,72 @@ const calcHeatIndex = (tempF, humidity) => {
 };
 
 // 날씨별 실질온도(체감, 열지수) 계산
-const calcApparentTemp = (tempC, windSpeed, humidity, isMps = true) => {
+const calcApparentTemp = (tempC, windSpeed, humidity, season, isMps = true) => {
   if (tempC === null || windSpeed === null || humidity === null) return null;
 
   const windSpeedKph = isMps ? windSpeed * 3.6 : windSpeed; // 1 m/s = 3.6 km/h
   const tempF = celsiusToFahrenheit(tempC) || 0;
 
-  // 추운날씨: 체감온도 계산
-  if (tempC <= 10) {
-    const windChill = calcWindChill(tempC, windSpeedKph);
+  if (season === "S") {
+    // 여름철 체감온도
+    // 습구온도
+    // Tw = Ta * Math.atan(0.151977 * Math.pow(RH + 8.313659, 0.5)) + Math.atan(Ta + RH) - Math.atan(RH - 1.67633) + (0.00391838 * Math.pow(RH, 1.5) * Math.atan(0.023101 * RH)) - 4.686035
+    const tw =
+      tempC * Math.atan(0.151977 * Math.sqrt(humidity + 8.313659)) +
+      Math.atan(tempC + humidity) -
+      Math.atan(humidity - 1.67633) +
+      0.00391838 * Math.pow(humidity, 1.5) * Math.atan(0.023101 * humidity) -
+      4.686035;
+    // 체감온도
+    // -0.2442 + 0.55399Tw + 0.45535Ta - 0.0022Tw² + 0.00278TwTa + 3.0
+    //return Math.round(windChill * 10) / 10;
+    const apparentTemp =
+      -0.2442 +
+      0.55399 * tw +
+      0.45535 * tempC -
+      0.0022 * Math.pow(tw, 2) +
+      0.00278 * tw * tempC +
+      3.0;
+    // 소수점 첫째 자리까지 반올림
+    const windChill = Math.round(apparentTemp * 10) / 10;
     return {
       apparentTemp: windChill,
       method: "체감온도",
-      difference: windChill - tempC,
+      difference: apparentTemp - tempC,
       windSpeedOriginal: windSpeed,
       windSpeedKph: windSpeedKph,
     };
-  }
-  // 더운날씨: 열지수 계산
-  else if (tempF >= 80) {
-    const heatIndex = calcHeatIndex(tempF, humidity);
-    const heatIndexC = fahrenheitToCelsius(heatIndex) || 0;
+  } else {
+    // 추운날씨: 체감온도 계산
+    if (tempC <= 10) {
+      const windChill = calcWindChill(tempC, windSpeedKph);
+      return {
+        apparentTemp: windChill,
+        method: "체감온도",
+        difference: windChill - tempC,
+        windSpeedOriginal: windSpeed,
+        windSpeedKph: windSpeedKph,
+      };
+    }
+    // 더운날씨: 열지수 계산
+    else if (tempF >= 80) {
+      const heatIndex = calcHeatIndex(tempF, humidity);
+      const heatIndexC = fahrenheitToCelsius(heatIndex) || 0;
 
-    return {
-      apparentTemp: heatIndexC,
-      method: "열지수",
-      difference: heatIndexC - tempC,
-    };
-  }
-  // 그 외: 실제 기온 동일
-  else {
-    return {
-      apparentTemp: tempC,
-      method: "실제 기온",
-      difference: 0,
-    };
+      return {
+        apparentTemp: heatIndexC,
+        method: "열지수",
+        difference: heatIndexC - tempC,
+      };
+    }
+    // 그 외: 실제 기온 동일
+    else {
+      return {
+        apparentTemp: tempC,
+        method: "실제 기온",
+        difference: 0,
+      };
+    }
   }
 };
 
@@ -153,10 +184,12 @@ const analyzeUltraSrtNcst = (resp) => {
 
   // 중간 정보 가공
   const { T1H, REH, WSD } = categoryValues;
+  const season = getSeason();
   const FL = calcApparentTemp(
     parseFloat(T1H?.obsrValue || "0"),
     parseFloat(WSD?.obsrValue || "0"),
-    parseFloat(REH?.obsrValue || "0")
+    parseFloat(REH?.obsrValue || "0"),
+    season
   );
 
   // 기상 정보 항목 데이터 가공
