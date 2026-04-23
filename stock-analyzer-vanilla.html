@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>주식 편차 분석기</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px 16px;min-height:100vh}
+h1{font-size:22px;font-weight:700;color:#58a6ff;text-align:center}
+.subtitle{font-size:12px;color:#8b949e;text-align:center;margin-top:4px;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;margin-bottom:16px}
+.ctrl-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+label.lbl{font-size:11px;color:#8b949e;display:block;margin-bottom:4px}
+input[type=text]{background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;
+  padding:8px 10px;font-size:14px;outline:none;width:100%}
+input[type=text]:focus{border-color:#58a6ff}
+.btn-grp{display:flex;gap:4px;flex-wrap:wrap}
+.tbtn{padding:7px 10px;border-radius:6px;border:1px solid #30363d;font-size:12px;
+  cursor:pointer;background:#0d1117;color:#8b949e;transition:.15s}
+.tbtn.ab{border-color:#58a6ff;background:#1f3a5f;color:#58a6ff}
+.tbtn.ao{border-color:#f0883e;background:#3d2000;color:#f0883e}
+.run-btn{padding:9px 24px;border-radius:8px;border:none;background:#238636;
+  color:#fff;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap}
+.run-btn:disabled{background:#30363d;cursor:not-allowed}
+.hint{font-size:11px;color:#6e7681;margin-top:10px}
+#errorBox{background:#3d1111;border:1px solid #da3633;border-radius:8px;padding:12px 16px;
+  margin-bottom:20px;font-size:13px;color:#f85149;white-space:pre-line;display:none}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.scard{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px}
+.slbl{font-size:11px;color:#6e7681;margin-bottom:4px}
+.sval{font-size:15px;font-weight:700}
+#signalBox{border-radius:10px;padding:14px 18px;margin-bottom:20px;display:none}
+.ctitle{font-size:14px;color:#8b949e;margin-bottom:14px}
+.lgrow{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#6e7681;margin-top:8px}
+.ggrp{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.gitem{background:#0d1117;border-radius:6px;padding:10px 12px}
+.grange{font-size:11px;color:#6e7681}
+.glbl{font-size:13px;font-weight:600;margin:2px 0}
+.gdesc{font-size:11px;color:#8b949e}
+#placeholder{text-align:center;color:#484f58;padding:60px 20px}
+#results{display:none}
+</style>
+</head>
+<body>
+
+<h1>📊 주식 편차 분석기</h1>
+<p class="subtitle">이동평균 기반 표준편차 &amp; Z-Score 분석 (볼린저밴드)</p>
+
+<div class="card">
+  <div class="ctrl-row">
+    <div style="flex:1 1 160px">
+      <label class="lbl">종목코드</label>
+      <div style="position:relative">
+        <input type="text" id="tickerInput" value="AAPL" placeholder="AAPL / 005930" autocomplete="off" style="padding-right:42px"/>
+        <span id="ksBadge" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);
+          font-size:11px;color:#f0883e;font-weight:700;pointer-events:none">.KS</span>
+      </div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="ksChk" style="width:14px;height:14px;cursor:pointer;accent-color:#f0883e"/>
+        <label for="ksChk" style="font-size:11px;color:#8b949e;cursor:pointer;margin:0">한국 종목 (.KS 자동 추가)</label>
+      </div>
+    </div>
+    <div>
+      <label class="lbl">기간</label>
+      <div class="btn-grp" id="periodGrp">
+        <button class="tbtn" data-v="3mo">3개월</button>
+        <button class="tbtn" data-v="6mo">6개월</button>
+        <button class="tbtn ab" data-v="1y">1년</button>
+        <button class="tbtn" data-v="2y">2년</button>
+        <button class="tbtn" data-v="3y">3년</button>
+      </div>
+    </div>
+    <div>
+      <label class="lbl">이동평균</label>
+      <div class="btn-grp" id="winGrp">
+        <button class="tbtn ao" data-v="20">20일</button>
+        <button class="tbtn" data-v="50">50일</button>
+        <button class="tbtn" data-v="100">100일</button>
+      </div>
+    </div>
+    <button class="run-btn" id="runBtn">▶ 분석</button>
+  </div>
+  <p class="hint">미국: AAPL, TSLA, SPY &nbsp;|&nbsp; 코스피: 005930 (삼성전자) &nbsp;|&nbsp; 코스닥: 035420 (NAVER)</p>
+</div>
+
+<div id="errorBox"></div>
+
+<div id="placeholder">
+  <div style="font-size:48px;margin-bottom:16px">📊</div>
+  <div style="font-size:14px">종목코드를 입력하고 분석 버튼을 눌러주세요</div>
+  <div style="font-size:12px;margin-top:8px;color:#30363d">예: AAPL, TSLA, SPY, 005930, 035420</div>
+</div>
+
+<div id="results">
+  <div id="stockName" style="font-size:13px;color:#8b949e;margin-bottom:8px"></div>
+  <div class="sgrid" id="sgrid"></div>
+  <div id="signalBox"></div>
+
+  <div class="card">
+    <div class="ctitle">📈 가격 &amp; 볼린저밴드 (±1σ / ±2σ / ±3σ)</div>
+    <div id="bollWrap" style="overflow:hidden;height:360px;min-height:120px;position:relative;border-radius:6px">
+      <canvas id="cBoll" style="width:100%;height:calc(100% - 6px)"></canvas>
+      <div id="bollResizeBar" style="position:absolute;bottom:0;left:0;right:0;height:6px;
+        background:linear-gradient(transparent,#30363d);cursor:ns-resize;border-radius:0 0 6px 6px"
+        title="드래그로 높이 조절"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle">📉 Z-Score 추이</div>
+    <canvas id="cZ" style="max-height:220px"></canvas>
+    <div class="lgrow">
+      <span><span style="color:#3fb950">■</span> Z≤-2 매수</span>
+      <span><span style="color:#79c0ff">■</span> -2~-1 약매수</span>
+      <span><span style="color:#484f58">■</span> -1~+1 중립</span>
+      <span><span style="color:#ffa657">■</span> +1~+2 약매도</span>
+      <span><span style="color:#f85149">■</span> Z≥+2 매도</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle">📊 Z-Score 분포</div>
+    <canvas id="cHist" style="max-height:180px"></canvas>
+    <div id="histStat" style="font-size:12px;color:#8b949e;margin-top:8px;line-height:1.6"></div>
+  </div>
+  <div class="card">
+    <div class="ctitle">📋 편차 해석 기준</div>
+    <div class="ggrp" id="guideGrid"></div>
+    <p style="font-size:11px;color:#6e7681;margin-top:12px;line-height:1.5">
+      ⚠️ 본 분석은 <b>통계적 평균회귀(Mean Reversion)</b> 원리 기반입니다.
+      추세가 강한 종목은 과매수/과매도 구간이 장기간 지속될 수 있으며, 투자 결정 시 다른 지표와 함께 참고하세요.
+    </p>
+  </div>
+</div>
+
+<script>
+// ── 볼린저 차트 영역 리사이즈 ────────────────────────
+(function() {
+  var wrap = document.getElementById("bollWrap");
+  var bar  = document.getElementById("bollResizeBar");
+  var dragging = false, startY = 0, startH = 0;
+
+  bar.addEventListener("mousedown", function(e) {
+    dragging = true;
+    startY = e.clientY;
+    startH = wrap.offsetHeight;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "ns-resize";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", function(e) {
+    if (!dragging) return;
+    var h = Math.min(600, Math.max(120, startH + (e.clientY - startY)));
+    wrap.style.height = h + "px";
+    if (charts.boll) charts.boll.resize();
+  });
+  document.addEventListener("mouseup", function() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    if (charts.boll) charts.boll.resize();
+  });
+})();
+var selPeriod = "1y";
+var selWin    = 20;
+var charts    = {};
+
+// ═══════════════════════════════════════════════════
+//  가이드 렌더링 (초기)
+// ═══════════════════════════════════════════════════
+var GUIDES = [
+  ["Z ≤ -3σ",        "🟢🟢 강한 매수", "극단적 저평가, 역대급 기회",    "#00c853"],
+  ["-3σ < Z ≤ -2σ", "🟢 매수 고려",   "통계적 저평가 구간 진입",        "#43a047"],
+  ["-2σ < Z ≤ -1σ", "🔵 약한 매수",   "평균 이하, 반등 기대 가능",      "#7cb342"],
+  ["-1σ < Z ≤ +1σ", "⚪ 중립 (적정)", "정상 편차 범위 내",             "#757575"],
+  ["+1σ < Z ≤ +2σ", "🟡 약한 매도",   "평균 이상, 주의 필요",           "#fb8c00"],
+  ["+2σ < Z ≤ +3σ", "🔴 매도 고려",   "통계적 고평가 구간 진입",        "#e53935"],
+  ["Z > +3σ",        "🔴🔴 강한 매도", "극단적 과열, 조정 가능성↑",      "#b71c1c"],
+];
+document.getElementById("guideGrid").innerHTML = GUIDES.map(function(g) {
+  return '<div class="gitem" style="border-left:3px solid ' + g[3] + '">'
+    + '<div class="grange">' + g[0] + '</div>'
+    + '<div class="glbl" style="color:' + g[3] + '">' + g[1] + '</div>'
+    + '<div class="gdesc">' + g[2] + '</div>'
+    + '</div>';
+}).join("");
+
+// ═══════════════════════════════════════════════════
+//  버튼 토글
+// ═══════════════════════════════════════════════════
+document.querySelectorAll("#periodGrp .tbtn").forEach(function(b) {
+  b.addEventListener("click", function() {
+    document.querySelectorAll("#periodGrp .tbtn").forEach(function(x){ x.classList.remove("ab"); });
+    b.classList.add("ab");
+    selPeriod = b.getAttribute("data-v");
+  });
+});
+document.querySelectorAll("#winGrp .tbtn").forEach(function(b) {
+  b.addEventListener("click", function() {
+    document.querySelectorAll("#winGrp .tbtn").forEach(function(x){ x.classList.remove("ao"); });
+    b.classList.add("ao");
+    selWin = parseInt(b.getAttribute("data-v"), 10);
+  });
+});
+document.getElementById("runBtn").addEventListener("click", analyze);
+document.getElementById("tickerInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") analyze();
+});
+
+// ═══════════════════════════════════════════════════
+//  한국 종목 자동 감지
+// ═══════════════════════════════════════════════════
+function isKoreanTicker(val) {
+  // 6자리이고 숫자가 하나 이상 포함 + 영문만 6자리는 해외 티커이므로 제외
+  if (val.includes(".")) return false;
+  if (!/^[A-Z0-9]{6}$/.test(val)) return false;
+  if (!/[0-9]/.test(val)) return false;
+  if (/^[A-Z]{6}$/.test(val)) return false;
+  return true;
+}
+
+function getTickerForFetch() {
+  var raw = document.getElementById("tickerInput").value.toUpperCase().trim();
+  if (!raw) return "";
+  if (raw.includes(".")) return raw;  // 이미 .KS/.KQ 등 suffix 있음
+  var chk = document.getElementById("ksChk").checked;
+  if (chk || isKoreanTicker(raw)) return raw + ".KS";
+  return raw;
+}
+
+function updateBadge() {
+  var raw = document.getElementById("tickerInput").value.toUpperCase().trim();
+  var chk = document.getElementById("ksChk").checked;
+  var show = !raw.includes(".") && (chk || isKoreanTicker(raw));
+  document.getElementById("ksBadge").style.display = show ? "inline" : "none";
+}
+
+document.getElementById("tickerInput").addEventListener("input", function() {
+  // 대문자 변환
+  var pos = this.selectionStart;
+  this.value = this.value.toUpperCase();
+  this.setSelectionRange(pos, pos);
+  var val = this.value.trim();
+  // 체크박스 자동 ON/OFF
+  if (!val.includes(".")) {
+    if (isKoreanTicker(val)) {
+      document.getElementById("ksChk").checked = true;
+    } else if (/^[A-Z]{1,5}$/.test(val)) {
+      document.getElementById("ksChk").checked = false;
+    }
+  }
+  updateBadge();
+});
+document.getElementById("ksChk").addEventListener("change", updateBadge);
+
+// ═══════════════════════════════════════════════════
+//  유틸
+// ═══════════════════════════════════════════════════
+function fmt(v, d) {
+  if (d === undefined) d = 2;
+  if (v == null) return "-";
+  return Number(v).toLocaleString("ko-KR", {minimumFractionDigits:d, maximumFractionDigits:d});
+}
+function fmtDate(ts) {
+  var d = new Date(ts * 1000);
+  return d.getFullYear() + "." +
+    String(d.getMonth()+1).padStart(2,"0") + "." +
+    String(d.getDate()).padStart(2,"0");
+}
+function calcStats(arr) {
+  if (!arr.length) return {mean:0, std:0};
+  var mean = arr.reduce(function(a,b){return a+b;}, 0) / arr.length;
+  var std  = Math.sqrt(arr.reduce(function(a,b){return a+(b-mean)*(b-mean);}, 0) / arr.length);
+  return {mean:mean, std:std};
+}
+function getSignal(z) {
+  if (z <= -3) return {label:"강한 매수",   color:"#00c853", bg:"#e8f5e9", emoji:"🟢🟢"};
+  if (z <= -2) return {label:"매수 고려",   color:"#43a047", bg:"#f1f8e9", emoji:"🟢"};
+  if (z <= -1) return {label:"약한 매수",   color:"#7cb342", bg:"#f9fbe7", emoji:"🔵"};
+  if (z <=  1) return {label:"중립 (적정)", color:"#757575", bg:"#f5f5f5", emoji:"⚪"};
+  if (z <=  2) return {label:"약한 매도",   color:"#fb8c00", bg:"#fff3e0", emoji:"🟡"};
+  if (z <=  3) return {label:"매도 고려",   color:"#e53935", bg:"#ffebee", emoji:"🔴"};
+  return              {label:"강한 매도",   color:"#b71c1c", bg:"#ffcdd2", emoji:"🔴🔴"};
+}
+function zColor(z) {
+  if (z <= -2) return "#3fb950";
+  if (z <= -1) return "#79c0ff";
+  if (z >=  2) return "#f85149";
+  if (z >=  1) return "#ffa657";
+  return "#484f58";
+}
+function percentile(arr, val) {
+  return ((arr.filter(function(v){return v<=val;}).length / arr.length) * 100).toFixed(1);
+}
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ═══════════════════════════════════════════════════
+//  프록시 fetch
+// ═══════════════════════════════════════════════════
+var PROXIES = [
+  function(u){ return "https://corsproxy.io/?" + encodeURIComponent(u); },
+  function(u){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
+  function(u){ return "https://thingproxy.freeboard.io/fetch/" + u; },
+  function(u){ return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); },
+];
+
+async function fetchYahoo(ticker) {
+  var bases = [
+    "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=" + selPeriod,
+    "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=" + selPeriod,
+  ];
+  for (var i = 0; i < bases.length; i++) {
+    for (var j = 0; j < PROXIES.length; j++) {
+      try {
+        var res = await fetch(PROXIES[j](bases[i]), {signal: AbortSignal.timeout(9000)});
+        if (!res.ok) continue;
+        var text = await res.text();
+        if (!text || text.trim().charAt(0) === "<") continue;
+        var json = JSON.parse(text);
+        if (json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].timestamp) {
+          return json;
+        }
+      } catch(e) { continue; }
+    }
+  }
+  var isFile = location.protocol === "file:";
+  throw new Error(isFile
+    ? "file:// 직접 실행 시 한국 종목은 CORS 제한이 발생합니다.\n\n로컬 서버로 실행해 주세요:\n  python -m http.server 8080\n  → http://localhost:8080/파일명.html"
+    : "모든 프록시 연결 실패. 잠시 후 다시 시도하거나 종목코드를 확인하세요.");
+}
+
+// ═══════════════════════════════════════════════════
+//  차트 공통 옵션
+// ═══════════════════════════════════════════════════
+var GC = "#21262d", TC = "#6e7681";
+var baseOpts = {
+        responsive: true, maintainAspectRatio: false, animation: false,
+  plugins: {legend:{labels:{color:"#8b949e", boxWidth:12, font:{size:11}}}},
+  scales: {
+    x:{grid:{color:GC}, ticks:{color:TC, font:{size:10}, maxTicksLimit:8}},
+    y:{grid:{color:GC}, ticks:{color:TC, font:{size:10}}},
+  }
+};
+
+// ═══════════════════════════════════════════════════
+//  메인 분석
+// ═══════════════════════════════════════════════════
+async function analyze() {
+  // 종목코드 확정
+  var ticker = getTickerForFetch();
+  if (!ticker) return;
+
+  var btn = document.getElementById("runBtn");
+  btn.disabled = true;
+  btn.textContent = "분석 중...";
+  document.getElementById("errorBox").style.display = "none";
+  document.getElementById("results").style.display = "none";
+  document.getElementById("placeholder").style.display = "none";
+
+  try {
+    var json   = await fetchYahoo(ticker);
+    var result = json.chart.result[0];
+    var timestamps = result.timestamp;
+    var closes     = result.indicators.quote[0].close;
+    var W = selWin;
+
+    var labels=[], prices=[], mas=[], u1=[], u2=[], u3=[], l1=[], l2=[], l3=[], zArr=[], allZ=[];
+
+    for (var i = W-1; i < closes.length; i++) {
+      var slice = closes.slice(i-W+1, i+1).filter(function(v){return v!=null;});
+      if (slice.length < W) continue;
+      var st = calcStats(slice);
+      var c  = closes[i];
+      if (c == null) continue;
+      var z = st.std > 0 ? (c - st.mean) / st.std : 0;
+      allZ.push(z);
+      labels.push(fmtDate(timestamps[i]));
+      prices.push(+c.toFixed(2));
+      mas.push(+st.mean.toFixed(2));
+      u1.push(+(st.mean +     st.std).toFixed(2));
+      u2.push(+(st.mean + 2 * st.std).toFixed(2));
+      u3.push(+(st.mean + 3 * st.std).toFixed(2));
+      l1.push(+(st.mean -     st.std).toFixed(2));
+      l2.push(+(st.mean - 2 * st.std).toFixed(2));
+      l3.push(+(st.mean - 3 * st.std).toFixed(2));
+      zArr.push(+z.toFixed(3));
+    }
+    if (!allZ.length) throw new Error("충분한 데이터가 없습니다.");
+
+    var lastClose = prices[prices.length-1];
+    var lastMa    = mas[mas.length-1];
+    var lastStd   = +calcStats(prices.slice(-W)).std.toFixed(2);
+    var lastZ     = zArr[zArr.length-1];
+    var sig       = getSignal(lastZ);
+    var pct       = percentile(allZ, lastZ);
+    var below2    = allZ.filter(function(z){return z<=-2;}).length;
+    var above2    = allZ.filter(function(z){return z>= 2;}).length;
+    var currency  = (result.meta && result.meta.currency) || "";
+    var name      = (result.meta && result.meta.longName) || ticker;
+
+    // 종목명
+    document.getElementById("stockName").textContent = name + "  (" + ticker + ")";
+
+    // 요약 카드
+    var cards = [
+      ["현재가",            fmt(lastClose) + " " + currency,                    "#e6edf3"],
+      [W + "일 이동평균",    fmt(lastMa),                                        "#f0883e"],
+      ["표준편차 (σ)",       fmt(lastStd),                                       "#8b949e"],
+      ["현재 Z-Score",      (lastZ>0?"+":"") + fmt(lastZ) + "σ",               lastZ>1.5?"#f85149":lastZ<-1.5?"#3fb950":"#e6edf3"],
+      ["역사적 백분위",      "상위 " + (100-parseFloat(pct)).toFixed(1) + "%",   "#58a6ff"],
+      ["투자 신호",          sig.emoji + " " + sig.label,                        sig.color],
+    ];
+    document.getElementById("sgrid").innerHTML = cards.map(function(c) {
+      return '<div class="scard"><div class="slbl">' + c[0] + '</div>'
+           + '<div class="sval" style="color:' + c[2] + '">' + c[1] + '</div></div>';
+    }).join("");
+
+    // 신호 박스
+    var sb = document.getElementById("signalBox");
+    sb.style.cssText = "background:" + sig.bg + ";border:1px solid " + sig.color
+      + ";border-radius:10px;padding:14px 18px;margin-bottom:20px;display:block;color:#111";
+    sb.innerHTML = '<div style="font-weight:700;font-size:15px;color:' + sig.color + ';margin-bottom:6px">'
+      + sig.emoji + " " + sig.label + "</div>"
+      + '<div style="font-size:13px;color:#444">'
+      + "현재 Z-Score: <b>" + (lastZ>0?"+":"") + fmt(lastZ) + "σ</b> &nbsp;|&nbsp; "
+      + "MA 대비 <b>" + (lastClose>lastMa?"+":"") + fmt(lastClose-lastMa)
+      + " (" + ((lastClose-lastMa)/lastMa*100).toFixed(2) + "%)</b><br>"
+      + "Z≤-2 발생: <b>" + below2 + "회</b> (" + (below2/allZ.length*100).toFixed(1) + "%) &nbsp;|&nbsp; "
+      + "Z≥+2 발생: <b>" + above2 + "회</b> (" + (above2/allZ.length*100).toFixed(1) + "%)"
+      + "</div>";
+
+    // ── 볼린저밴드 차트
+    destroyChart("boll");
+    charts.boll = new Chart(document.getElementById("cBoll"), {
+      type:"line",
+      data:{ labels:labels, datasets:[
+        {label:"+3σ", data:u3, borderColor:"#ff666630", borderWidth:1, borderDash:[3,3], pointRadius:0, fill:false},
+        {label:"+2σ", data:u2, borderColor:"#ff6666",   borderWidth:1.5, borderDash:[4,2], pointRadius:0, fill:false},
+        {label:"+1σ", data:u1, borderColor:"#ffaa66",   borderWidth:1, borderDash:[4,2], pointRadius:0, fill:false},
+        {label:"MA"+W, data:mas, borderColor:"#f0883e",  borderWidth:2, pointRadius:0, fill:false},
+        {label:"-1σ", data:l1, borderColor:"#66aaff",   borderWidth:1, borderDash:[4,2], pointRadius:0, fill:false},
+        {label:"-2σ", data:l2, borderColor:"#4488ff",   borderWidth:1.5, borderDash:[4,2], pointRadius:0, fill:false},
+        {label:"-3σ", data:l3, borderColor:"#44ff8830", borderWidth:1, borderDash:[3,3], pointRadius:0, fill:false},
+        {label:"종가", data:prices, borderColor:"#58a6ff", borderWidth:2, pointRadius:0, fill:false},
+      ]},
+      options: Object.assign({}, baseOpts, {
+        scales:{
+          x:{grid:{color:GC}, ticks:{color:TC, font:{size:10}, maxTicksLimit:8}},
+          y:{grid:{color:GC}, ticks:{color:TC, font:{size:10}, callback:function(v){return v.toLocaleString();}}},
+        }
+      })
+    });
+
+    // ── Z-Score 바 차트
+    destroyChart("zscore");
+    charts.zscore = new Chart(document.getElementById("cZ"), {
+      type:"bar",
+      data:{ labels:labels, datasets:[{
+        label:"Z-Score", data:zArr,
+        backgroundColor: zArr.map(zColor),
+        borderWidth:0, barPercentage:0.9,
+      }]},
+      options: Object.assign({}, baseOpts, {
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{grid:{color:GC}, ticks:{color:TC, font:{size:10}, maxTicksLimit:8}},
+          y:{grid:{color:GC}, ticks:{color:TC, font:{size:10}}, min:-4, max:4,
+             afterBuildTicks:function(ax){ax.ticks=[-3,-2,-1,0,1,2,3].map(function(v){return{value:v};});}},
+        }
+      })
+    });
+
+    // ── 히스토그램
+    var hLabels=[], hData=[], hColors=[], curBin=-1;
+    for (var b=-4; b<4; b+=0.5) {
+      var cnt = allZ.filter(function(z){return z>=b && z<b+0.5;}).length;
+      hLabels.push(b.toFixed(1));
+      hData.push(cnt);
+      var idx = hLabels.length - 1;
+      if (lastZ >= b && lastZ < b+0.5) curBin = idx;
+      hColors.push(b>=2?"#f85149": b<=-2.5?"#3fb950": b<=-1.5?"#79c0ff": b>=1?"#ffa657":"#30363d");
+    }
+    if (curBin >= 0) hColors[curBin] = "#ffff00";
+
+    destroyChart("hist");
+    charts.hist = new Chart(document.getElementById("cHist"), {
+      type:"bar",
+      data:{labels:hLabels, datasets:[{label:"발생횟수", data:hData, backgroundColor:hColors, borderWidth:0, barPercentage:0.95}]},
+      options: Object.assign({}, baseOpts, {
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{
+            title:function(ctx){return "Z = "+ctx[0].label;},
+            label:function(ctx){return " "+ctx.raw+"회"+(ctx.dataIndex===curBin?" ← 현재":"");}
+          }}
+        },
+        scales:{
+          x:{grid:{color:GC}, ticks:{color:TC, font:{size:9}, maxTicksLimit:16}},
+          y:{grid:{color:GC}, ticks:{color:TC, font:{size:10}}},
+        }
+      })
+    });
+
+    document.getElementById("histStat").innerHTML =
+      '<span style="color:#3fb950">Z≤-2 매수권: ' + below2 + '회 (' + (below2/allZ.length*100).toFixed(1) + '%)</span>'
+      + ' &nbsp;|&nbsp; <span style="color:#f85149">Z≥+2 매도권: ' + above2 + '회 (' + (above2/allZ.length*100).toFixed(1) + '%)</span>'
+      + ' &nbsp;|&nbsp; 역대 최저Z: <b style="color:#3fb950">' + fmt(Math.min.apply(null,allZ)) + 'σ</b>'
+      + ' &nbsp;|&nbsp; 역대 최고Z: <b style="color:#f85149">' + fmt(Math.max.apply(null,allZ)) + 'σ</b>';
+
+    document.getElementById("results").style.display = "block";
+
+  } catch(e) {
+    var eb = document.getElementById("errorBox");
+    eb.textContent = "⚠️ " + (e.message || "오류가 발생했습니다.");
+    eb.style.display = "block";
+    document.getElementById("placeholder").style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "▶ 분석";
+  }
+}
+</script>
+</body>
+</html>
