@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>변동성 분석기 — 일일 수익률 표준편차 & 정규분포</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #F2F5F4;
+    --grid-line: rgba(27,36,48,0.06);
+    --panel: #FFFFFF;
+    --border: #DCE2E6;
+    --ink: #16202A;
+    --ink-soft: #5B6572;
+    --mute: #8A93A0;
+    --a: #3461FD;      /* 지수 A 색 */
+    --a-soft: #3461FD22;
+    --b: #E0435A;      /* 지수 B 색 */
+    --b-soft: #E0435A22;
+    --ok: #1E8E5A;
+    --err: #C0392B;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans KR', -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+  }
+  .wrap{ max-width: 1080px; margin: 0 auto; }
+
+  header{ position:relative; padding: 8px 4px 28px; overflow:hidden; }
+  header .formula{
+    position:absolute; right:-10px; top:-28px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 110px; font-weight:700;
+    color: var(--ink); opacity:0.045;
+    letter-spacing:-2px; pointer-events:none; user-select:none;
+    white-space:nowrap;
+  }
+  header h1{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 28px; font-weight:700; margin:0 0 6px; letter-spacing:-0.5px;
+  }
+  header p{ margin:0; color:var(--ink-soft); font-size:14.5px; line-height:1.6; max-width:640px; }
+  header p code{
+    font-family:'IBM Plex Mono',monospace; background:#fff; border:1px solid var(--border);
+    border-radius:4px; padding:1px 5px; font-size:12.5px;
+  }
+
+  .panel-card{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+
+  .controls{ margin-bottom: 22px; }
+  .controls-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr auto auto auto;
+    gap: 14px 16px;
+    align-items:end;
+  }
+  @media (max-width: 760px){
+    .controls-grid{ grid-template-columns: 1fr 1fr; }
+    .controls-grid .btn-cell{ grid-column: 1 / -1; }
+  }
+  .field label{
+    display:block; font-size:11.5px; font-weight:600; color:var(--mute);
+    text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;
+  }
+  .field select, .field input{
+    width:100%; font-family:'IBM Plex Mono', monospace; font-size:14px;
+    padding:9px 10px; border:1px solid var(--border); border-radius:7px;
+    background:#fff; color:var(--ink);
+  }
+  .field select:focus-visible, .field input:focus-visible, button:focus-visible{
+    outline:2px solid var(--a); outline-offset:2px;
+  }
+  .swatch-a select{ border-left:3px solid var(--a); }
+  .swatch-b select{ border-left:3px solid var(--b); }
+
+  .preset-row{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin-top:14px;
+  }
+  .preset-row .preset-label{
+    font-size:11.5px; font-weight:600; color:var(--mute);
+    text-transform:uppercase; letter-spacing:0.06em; margin-right:2px;
+  }
+  .preset-btn{
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600;
+    background:#fff; border:1px solid var(--border); color:var(--ink-soft);
+    border-radius:20px; padding:5px 14px; cursor:pointer;
+  }
+  .preset-btn:hover{ border-color:var(--ink-soft); color:var(--ink); }
+  .preset-btn.active{ background:var(--ink); border-color:var(--ink); color:#fff; }
+
+  button#fetchBtn{
+    font-family:'IBM Plex Sans KR', sans-serif; font-weight:600; font-size:14.5px;
+    background: var(--ink); color:#fff; border:none; border-radius:7px;
+    padding:10px 22px; cursor:pointer; white-space:nowrap; height:38px;
+  }
+  button#fetchBtn:hover{ background:#2B3742; }
+  button#fetchBtn:disabled{ background:#AEB6BE; cursor:progress; }
+
+  #statusMsg{
+    margin-top:12px; font-size:13px; font-family:'IBM Plex Mono',monospace;
+    min-height:18px;
+  }
+  #statusMsg.err{ color:var(--err); }
+  #statusMsg.ok{ color:var(--ok); }
+  #statusMsg.pending{ color:var(--mute); }
+
+  .results{
+    display:grid; grid-template-columns: 1fr 1fr; gap:18px;
+  }
+  @media (max-width: 820px){ .results{ grid-template-columns: 1fr; } }
+
+  .result-card{ border-top:3px solid transparent; }
+  .result-card.a{ border-top-color: var(--a); }
+  .result-card.b{ border-top-color: var(--b); }
+  .result-card h2{
+    font-family:'IBM Plex Mono', monospace; font-size:16px; margin:2px 0 2px;
+  }
+  .result-card .sub{ font-size:12px; color:var(--mute); margin-bottom:14px; }
+
+  .stat-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:6px 14px;
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px;
+    margin-bottom:16px; padding-bottom:14px; border-bottom:1px dashed var(--border);
+  }
+  .stat-grid .lbl{ color:var(--mute); }
+  .stat-grid .val{ color:var(--ink); font-weight:600; text-align:right; }
+  .stat-grid .val.big{ font-size:15px; }
+
+  .chart-box{ position:relative; height: 300px; }
+
+  .empty-state{
+    grid-column: 1 / -1; text-align:center; color:var(--mute);
+    font-family:'IBM Plex Mono',monospace; font-size:13px; padding: 48px 10px;
+    border:1px dashed var(--border); border-radius:var(--radius); background:#fff;
+  }
+
+  footer{
+    margin-top:34px; font-size:11.5px; color:var(--mute); line-height:1.7;
+    border-top:1px solid var(--border); padding-top:14px;
+  }
+  footer b{ color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="formula">N(&mu;,&sigma;&sup2;)</div>
+    <h1>변동성 분석기</h1>
+    <p>
+      네이버 해외증시 API(<code>api.stock.naver.com</code>)에서 일별 종가를 불러와
+      일일 수익률(%) 표준편차와 정규분포 근사 그래프를 계산합니다. 브라우저에서 직접 API를 호출하므로
+      인터넷 연결만 있으면 별도 서버 없이 이 파일 하나로 동작합니다.
+    </p>
+  </header>
+
+  <section class="panel-card controls">
+    <div class="controls-grid">
+      <div class="field swatch-a">
+        <label for="tickerA">지수 A</label>
+        <select id="tickerA">
+          <!--
+            ▼ 종목 추가 방법: 아래 형식으로 <option> 한 줄만 추가하면 드롭다운에 나타납니다.
+            <option value="TICKER">표시할 이름</option>
+            value는 네이버 API가 인식하는 해외 종목코드(대개 미국 티커)를 그대로 넣으면 됩니다.
+          -->
+          <option value="SPY" selected>SPY — S&P500 ETF</option>
+          <option value="QQQ.O">QQQ — 나스닥100 ETF</option>
+          <option value="DIA">DIA — 다우존스 ETF</option>
+          <option value="IWM">IWM — 러셀2000 ETF</option>
+          <option value="SCHD">SCHD — SCHD</option>
+          <option value="AAPL">AAPL — 애플</option>
+          <option value="NVDA">NVDA — 엔비디아</option>
+          <option value="TSLA">TSLA — 테슬라</option>
+        </select>
+      </div>
+      <div class="field swatch-b">
+        <label for="tickerB">지수 B</label>
+        <select id="tickerB">
+          <option value="SPY">SPY — S&P500 ETF</option>
+          <option value="QQQ.O" selected>QQQ — 나스닥100 ETF</option>
+          <option value="DIA">DIA — 다우존스 ETF</option>
+          <option value="IWM">IWM — 러셀2000 ETF</option>
+          <option value="SCHD">SCHD — SCHD</option>
+          <option value="AAPL">AAPL — 애플</option>
+          <option value="NVDA">NVDA — 엔비디아</option>
+          <option value="TSLA">TSLA — 테슬라</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="startDate">시작일</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="field">
+        <label for="endDate">종료일</label>
+        <input type="date" id="endDate">
+      </div>
+      <div class="field btn-cell">
+        <button id="fetchBtn">조회하기</button>
+      </div>
+    </div>
+    <div class="preset-row" id="presetRow">
+      <span class="preset-label">빠른 기간</span>
+      <button type="button" class="preset-btn" data-months="1">1개월</button>
+      <button type="button" class="preset-btn" data-months="3">3개월</button>
+      <button type="button" class="preset-btn" data-months="6">6개월</button>
+      <button type="button" class="preset-btn active" data-months="12">1년</button>
+      <button type="button" class="preset-btn" data-months="24">2년</button>
+    </div>
+    <div id="statusMsg"></div>
+  </section>
+
+  <section class="results" id="results">
+    <div class="empty-state">종목과 기간을 선택하고 조회하기를 누르면 여기에 결과가 표시됩니다.</div>
+  </section>
+
+  <footer>
+    <div><b>계산 방식</b> — 일일 수익률(%) = (당일종가 − 전일종가) / 전일종가 × 100. 표본표준편차(n−1) 사용,
+    연환산 변동성 = 일일 표준편차 × √252.</div>
+    <div style="margin-top:6px"><b>데이터 출처</b> — 네이버페이 증권 해외증시 시세 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
+    <div style="margin-top:6px"><b>참고</b> — 이 API는 네이버가 자사 웹페이지용으로 제공하는 비공식 엔드포인트라
+    브라우저에서 직접 호출하면 403으로 막힐 수 있습니다. 이 경우 자동으로 공개 프록시 4곳
+    (corsproxy.io → allorigins.win → thingproxy → codetabs)을 순서대로 시도하며, 상태 메시지에
+    어떤 경로로 성공했는지 표시됩니다. 모두 실패한다면 잠시 후 다시 시도하거나, 파일을
+    <code>file://</code>로 바로 열지 말고 <code>python -m http.server</code> 같은 로컬 서버로 띄운 뒤
+    <code>http://localhost:...</code> 주소로 접속해보세요 — 브라우저에 따라 file:// 직접 실행 시
+    요청이 더 엄격히 제한되는 경우가 있습니다.</div>
+  </footer>
+
+</div>
+
+<script>
+const TRADING_DAYS = 252;
+const charts = {};
+
+// 네이버 API가 브라우저 직접 호출을 막을 경우(403) 아래 공개 프록시들을 순서대로 시도합니다.
+// 프록시 하나가 다운되거나 느려도 다음 프록시로 자동으로 넘어갑니다.
+const PROXIES = [
+  (u) => 'https://corsproxy.io/?' + encodeURIComponent(u),
+  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  (u) => 'https://thingproxy.freeboard.io/fetch/' + u,
+  (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+];
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+function toInputDate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+
+function applyPreset(months){
+  const end = new Date();
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - months);
+  document.getElementById('startDate').value = toInputDate(start);
+  document.getElementById('endDate').value = toInputDate(end);
+}
+
+function setActivePresetBtn(btn){
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    applyPreset(parseInt(btn.dataset.months, 10));
+    setActivePresetBtn(btn);
+  });
+});
+
+// 날짜를 직접 수정하면 프리셋 버튼의 활성 표시는 해제합니다 (값 자체는 그대로 유지).
+['startDate','endDate'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=> setActivePresetBtn(null));
+});
+
+(function setDefaultDates(){
+  applyPreset(12); // 기본값: 최근 1년
+})();
+
+function toNaverDateTime(inputDateStr, isEnd){
+  const clean = inputDateStr.replaceAll('-','');
+  return clean + (isEnd ? '2359' : '0000');
+}
+
+async function fetchSeries(symbol, startStr, endStr){
+  const targetUrl = `https://api.stock.naver.com/chart/foreign/item/${encodeURIComponent(symbol)}/day?startDateTime=${startStr}&endDateTime=${endStr}`;
+
+  // 1) 직접 호출 시도
+  try{
+    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(9000) });
+    if(res.ok){
+      const data = await res.json();
+      if(Array.isArray(data) && data.length > 0) return { data, via: '직접 호출' };
+    }
+  }catch(e){ /* 실패하면 프록시로 계속 진행 */ }
+
+  // 2) 프록시를 순서대로 시도 — 하나가 막히거나 느리면 다음 것으로 자동 전환
+  for(let i = 0; i < PROXIES.length; i++){
+    try{
+      const res = await fetch(PROXIES[i](targetUrl), { signal: AbortSignal.timeout(9000) });
+      if(!res.ok) continue;
+      const text = await res.text();
+      // 프록시가 에러 페이지(HTML)를 200으로 돌려주는 경우가 있어 걸러냄
+      if(!text || text.trim().charAt(0) === '<') continue;
+      const data = JSON.parse(text);
+      if(Array.isArray(data) && data.length > 0){
+        return { data, via: `프록시 ${i+1}/${PROXIES.length}` };
+      }
+    }catch(e){ continue; }
+  }
+
+  const isFile = location.protocol === 'file:';
+  throw new Error(
+    isFile
+      ? `데이터를 가져오지 못했습니다 (${symbol}). file://로 직접 연 상태라 브라우저가 요청을 더 엄격하게 막았을 수 있습니다. 로컬 서버로 실행해보세요: "python -m http.server 8080" 실행 후 http://localhost:8080/ 로 접속.`
+      : `데이터를 가져오지 못했습니다 (${symbol}) — 직접 호출과 프록시 ${PROXIES.length}곳 모두 실패했습니다. 잠시 후 다시 시도하거나 종목코드를 확인하세요.`
+  );
+}
+
+function computeReturns(rawData){
+  const sorted = [...rawData].sort((a,b)=> a.localDate.localeCompare(b.localDate));
+  const closes = sorted.map(d => d.closePrice);
+  const dates = sorted.map(d => d.localDate);
+  const returns = [];
+  for(let i=1;i<closes.length;i++){
+    returns.push( (closes[i]-closes[i-1]) / closes[i-1] * 100 );
+  }
+  return { dates, closes, returns };
+}
+
+function computeStats(returns){
+  const n = returns.length;
+  const mean = returns.reduce((s,x)=>s+x,0) / n;
+  const variance = returns.reduce((s,x)=> s + (x-mean)**2, 0) / (n-1);
+  const sd = Math.sqrt(variance);
+  const annualized = sd * Math.sqrt(TRADING_DAYS);
+  const skew = returns.reduce((s,x)=> s + ((x-mean)/sd)**3, 0) / n;
+  const kurt = returns.reduce((s,x)=> s + ((x-mean)/sd)**4, 0) / n - 3;
+  const min = Math.min(...returns), max = Math.max(...returns);
+  return { n, mean, sd, annualized, skew, kurt, min, max };
+}
+
+function histogram(returns, binCount=24){
+  const min = Math.min(...returns), max = Math.max(...returns);
+  const width = (max - min) / binCount || 1;
+  const counts = new Array(binCount).fill(0);
+  returns.forEach(r=>{
+    let idx = Math.floor((r - min) / width);
+    if(idx >= binCount) idx = binCount - 1;
+    if(idx < 0) idx = 0;
+    counts[idx]++;
+  });
+  const n = returns.length;
+  const centers = counts.map((_,i)=> min + width*(i+0.5));
+  const density = counts.map(c => c / (n*width));
+  return { centers, density };
+}
+
+function normalPDF(x, mean, sd){
+  return (1/(sd*Math.sqrt(2*Math.PI))) * Math.exp(-((x-mean)**2)/(2*sd*sd));
+}
+
+function fmt(x, digits=3){ return x.toFixed(digits); }
+function fmtDate(d){ return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; }
+
+function renderResultCard(container, key, colorVar, label, dates, stats, hist){
+  const card = document.createElement('div');
+  card.className = `panel-card result-card ${key}`;
+  card.innerHTML = `
+    <h2>${label}</h2>
+    <div class="sub">${fmtDate(dates[0])} ~ ${fmtDate(dates[dates.length-1])} · 거래일 ${stats.n}일</div>
+    <div class="stat-grid">
+      <div class="lbl">일일 표준편차</div><div class="val big">${fmt(stats.sd,3)}%</div>
+      <div class="lbl">연환산 변동성</div><div class="val big">${fmt(stats.annualized,2)}%</div>
+      <div class="lbl">평균 일일수익률</div><div class="val">${fmt(stats.mean,3)}%</div>
+      <div class="lbl">최대/최소</div><div class="val">${fmt(stats.max,2)}% / ${fmt(stats.min,2)}%</div>
+      <div class="lbl">왜도(skew)</div><div class="val">${fmt(stats.skew,2)}</div>
+      <div class="lbl">첨도(초과, kurtosis)</div><div class="val">${fmt(stats.kurt,2)}</div>
+    </div>
+    <div class="chart-box"><canvas id="chart-${key}"></canvas></div>
+  `;
+  container.appendChild(card);
+
+  const labels = hist.centers.map(c => c.toFixed(2));
+  const curve = hist.centers.map(c => normalPDF(c, stats.mean, stats.sd));
+  const color = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
+
+  if(charts[key]) charts[key].destroy();
+  charts[key] = new Chart(document.getElementById(`chart-${key}`), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: '실제 분포',
+          data: hist.density,
+          backgroundColor: color + '55',
+          borderColor: color,
+          borderWidth: 1,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0,
+          order: 2
+        },
+        {
+          type: 'line',
+          label: '정규분포 근사',
+          data: curve,
+          borderColor: '#16202A',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.35,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          title: { display:true, text:'일일 수익률 (%)', font:{ family:"'IBM Plex Mono'", size:11 } },
+          ticks: { maxTicksLimit: 9, font:{ family:"'IBM Plex Mono'", size:10 } },
+          grid: { color:'#EEF1F3' }
+        },
+        y: {
+          title: { display:true, text:'확률밀도', font:{ family:"'IBM Plex Mono'", size:11 } },
+          ticks: { font:{ family:"'IBM Plex Mono'", size:10 } },
+          grid: { color:'#EEF1F3' }
+        }
+      },
+      plugins: {
+        legend: { labels: { font:{ family:"'IBM Plex Sans KR'", size:11.5 } } }
+      }
+    }
+  });
+}
+
+function setStatus(msg, kind){
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = kind || '';
+}
+
+async function onFetchClick(){
+  const tickerASel = document.getElementById('tickerA');
+  const tickerBSel = document.getElementById('tickerB');
+  const tickerA = tickerASel.value;
+  const tickerB = tickerBSel.value;
+  const labelA = tickerASel.selectedOptions[0].textContent;
+  const labelB = tickerBSel.selectedOptions[0].textContent;
+  const startVal = document.getElementById('startDate').value;
+  const endVal = document.getElementById('endDate').value;
+
+  if(!startVal || !endVal){
+    setStatus('시작일과 종료일을 모두 선택하세요.', 'err');
+    return;
+  }
+  if(startVal >= endVal){
+    setStatus('시작일은 종료일보다 이전이어야 합니다.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  setStatus('데이터를 불러오는 중입니다…', 'pending');
+
+  const startStr = toNaverDateTime(startVal, false);
+  const endStr = toNaverDateTime(endVal, true);
+
+  try{
+    const [resA, resB] = await Promise.all([
+      fetchSeries(tickerA, startStr, endStr),
+      fetchSeries(tickerB, startStr, endStr)
+    ]);
+
+    const seriesA = computeReturns(resA.data);
+    const seriesB = computeReturns(resB.data);
+
+    if(seriesA.returns.length < 5 || seriesB.returns.length < 5){
+      throw new Error('선택한 기간의 거래일 데이터가 너무 적습니다. 기간을 늘려보세요.');
+    }
+
+    const statsA = computeStats(seriesA.returns);
+    const statsB = computeStats(seriesB.returns);
+    const histA = histogram(seriesA.returns);
+    const histB = histogram(seriesB.returns);
+
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+    renderResultCard(results, 'a', '--a', labelA, seriesA.dates, statsA, histA);
+    renderResultCard(results, 'b', '--b', labelB, seriesB.dates, statsB, histB);
+
+    const proxyNote = ` (${tickerA}: ${resA.via}, ${tickerB}: ${resB.via})`;
+    setStatus(`조회 완료 — ${tickerA}: ${statsA.n}일, ${tickerB}: ${statsB.n}일${proxyNote}`, 'ok');
+  }catch(err){
+    console.error(err);
+    let hint = '';
+    if(err instanceof TypeError){
+      hint = ' (네트워크 오류 또는 CORS 차단 가능성 — 콘솔을 확인하세요)';
+    }
+    setStatus('조회 실패: ' + err.message + hint, 'err');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('fetchBtn').addEventListener('click', onFetchClick);
+</script>
+</body>
+</html>
