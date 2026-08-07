@@ -166,7 +166,7 @@
     <div class="formula">N(&mu;,&sigma;&sup2;)</div>
     <h1>변동성 분석기</h1>
     <p>
-      네이버 해외증시 API(<code>api.stock.naver.com</code>)에서 일별 종가를 불러와
+      Yahoo Finance 차트 API(<code>query1/query2.finance.yahoo.com</code>)에서 일별 종가를 불러와
       일일 수익률(%) 표준편차와 정규분포 근사 그래프를 계산합니다. 브라우저에서 직접 API를 호출하므로
       인터넷 연결만 있으면 별도 서버 없이 이 파일 하나로 동작합니다.
     </p>
@@ -180,7 +180,7 @@
           <!--
             ▼ 종목 추가 방법: 아래 형식으로 <option> 한 줄만 추가하면 드롭다운에 나타납니다.
             <option value="TICKER">표시할 이름</option>
-            value는 네이버 API가 인식하는 해외 종목코드(대개 미국 티커)를 그대로 넣으면 됩니다.
+            value는 Yahoo Finance가 인식하는 티커(미국: AAPL, SPY 등 / 한국: 종목코드+.KS 또는 .KQ)를 넣으면 됩니다.
           -->
           <option value="SPY" selected>SPY — S&P500 ETF</option>
           <option value="QQQ.O">QQQ — 나스닥100 ETF</option>
@@ -203,7 +203,6 @@
           <option value="AAPL">AAPL — 애플</option>
           <option value="NVDA">NVDA — 엔비디아</option>
           <option value="TSLA">TSLA — 테슬라</option>
-        </select>
         </select>
       </div>
       <div class="field">
@@ -236,14 +235,12 @@
   <footer>
     <div><b>계산 방식</b> — 일일 수익률(%) = (당일종가 − 전일종가) / 전일종가 × 100. 표본표준편차(n−1) 사용,
     연환산 변동성 = 일일 표준편차 × √252.</div>
-    <div style="margin-top:6px"><b>데이터 출처</b> — 네이버페이 증권 해외증시 시세 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
-    <div style="margin-top:6px"><b>참고</b> — 이 API는 네이버가 자사 웹페이지용으로 제공하는 비공식 엔드포인트라
-    브라우저에서 직접 호출하면 403으로 막힐 수 있습니다. 이 경우 자동으로 공개 프록시 4곳
-    (corsproxy.io → allorigins.win → thingproxy → codetabs)을 순서대로 시도하며, 상태 메시지에
-    어떤 경로로 성공했는지 표시됩니다. 모두 실패한다면 잠시 후 다시 시도하거나, 파일을
-    <code>file://</code>로 바로 열지 말고 <code>python -m http.server</code> 같은 로컬 서버로 띄운 뒤
-    <code>http://localhost:...</code> 주소로 접속해보세요 — 브라우저에 따라 file:// 직접 실행 시
-    요청이 더 엄격히 제한되는 경우가 있습니다.</div>
+    <div style="margin-top:6px"><b>데이터 출처</b> — Yahoo Finance 차트 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
+    <div style="margin-top:6px"><b>참고</b> — Yahoo Finance는 브라우저의 직접 호출을 CORS로 막기 때문에 항상 공개 프록시 4곳
+    (corsproxy.io → allorigins.win → thingproxy → codetabs)을 <code>query1</code>·<code>query2</code> 두 서버 각각에
+    순서대로 시도합니다(최대 8회). 상태 메시지에 어떤 경로로 성공했는지 표시됩니다. 모두 실패한다면 잠시 후
+    다시 시도하거나, 파일을 <code>file://</code>로 바로 열지 말고 <code>python -m http.server</code> 같은
+    로컬 서버로 띄운 뒤 <code>http://localhost:...</code> 주소로 접속해보세요.</div>
   </footer>
 
 </div>
@@ -293,43 +290,63 @@ document.querySelectorAll('.preset-btn').forEach(btn=>{
   applyPreset(12); // 기본값: 최근 1년
 })();
 
-function toNaverDateTime(inputDateStr, isEnd){
-  const clean = inputDateStr.replaceAll('-','');
-  return clean + (isEnd ? '2359' : '0000');
+function toUnixSeconds(inputDateStr, isEnd){
+  const [y, m, d] = inputDateStr.split('-').map(Number);
+  const ms = isEnd
+    ? Date.UTC(y, m-1, d, 23, 59, 59)
+    : Date.UTC(y, m-1, d, 0, 0, 0);
+  return Math.floor(ms / 1000);
 }
 
-async function fetchSeries(symbol, startStr, endStr){
-  const targetUrl = `https://api.stock.naver.com/chart/foreign/item/${encodeURIComponent(symbol)}/day?startDateTime=${startStr}&endDateTime=${endStr}`;
+const YAHOO_BASES = [
+  'https://query1.finance.yahoo.com',
+  'https://query2.finance.yahoo.com',
+];
 
-  // 1) 직접 호출 시도
-  try{
-    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(9000) });
-    if(res.ok){
-      const data = await res.json();
-      if(Array.isArray(data) && data.length > 0) return { data, via: '직접 호출' };
+// Yahoo의 {timestamp:[...], indicators:{quote:[{close:[...]}]}} 구조를
+// 이후 로직이 쓰는 {localDate, closePrice} 배열로 변환
+function yahooResultToSeries(result){
+  const timestamps = result.timestamp || [];
+  const closes = (result.indicators && result.indicators.quote && result.indicators.quote[0]
+    && result.indicators.quote[0].close) || [];
+  const out = [];
+  for(let i=0; i<timestamps.length; i++){
+    if(closes[i] == null) continue; // 휴장/결측치 스킵
+    const d = new Date(timestamps[i] * 1000);
+    const localDate = `${d.getUTCFullYear()}${pad2(d.getUTCMonth()+1)}${pad2(d.getUTCDate())}`;
+    out.push({ localDate, closePrice: closes[i] });
+  }
+  return out;
+}
+
+async function fetchSeries(symbol, period1, period2){
+  // Yahoo는 브라우저 직접 호출을 CORS로 막으므로 곧바로 프록시로 진행.
+  // query1 실패 시 query2로, 각 서버마다 프록시 4곳을 순서대로 시도.
+  for(let b = 0; b < YAHOO_BASES.length; b++){
+    const targetUrl = `${YAHOO_BASES[b]}/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d`;
+    for(let i = 0; i < PROXIES.length; i++){
+      try{
+        const res = await fetch(PROXIES[i](targetUrl), { signal: AbortSignal.timeout(9000) });
+        if(!res.ok) continue;
+        const text = await res.text();
+        if(!text || text.trim().charAt(0) === '<') continue; // 프록시가 돌려준 에러 페이지 스킵
+        const json = JSON.parse(text);
+        const result = json && json.chart && json.chart.result && json.chart.result[0];
+        if(result && Array.isArray(result.timestamp) && result.timestamp.length){
+          const data = yahooResultToSeries(result);
+          if(data.length > 0){
+            return { data, via: `${b===0 ? 'query1' : 'query2'} · 프록시 ${i+1}/${PROXIES.length}` };
+          }
+        }
+      }catch(e){ continue; }
     }
-  }catch(e){ /* 실패하면 프록시로 계속 진행 */ }
-
-  // 2) 프록시를 순서대로 시도 — 하나가 막히거나 느리면 다음 것으로 자동 전환
-  for(let i = 0; i < PROXIES.length; i++){
-    try{
-      const res = await fetch(PROXIES[i](targetUrl), { signal: AbortSignal.timeout(9000) });
-      if(!res.ok) continue;
-      const text = await res.text();
-      // 프록시가 에러 페이지(HTML)를 200으로 돌려주는 경우가 있어 걸러냄
-      if(!text || text.trim().charAt(0) === '<') continue;
-      const data = JSON.parse(text);
-      if(Array.isArray(data) && data.length > 0){
-        return { data, via: `프록시 ${i+1}/${PROXIES.length}` };
-      }
-    }catch(e){ continue; }
   }
 
   const isFile = location.protocol === 'file:';
   throw new Error(
     isFile
       ? `데이터를 가져오지 못했습니다 (${symbol}). file://로 직접 연 상태라 브라우저가 요청을 더 엄격하게 막았을 수 있습니다. 로컬 서버로 실행해보세요: "python -m http.server 8080" 실행 후 http://localhost:8080/ 로 접속.`
-      : `데이터를 가져오지 못했습니다 (${symbol}) — 직접 호출과 프록시 ${PROXIES.length}곳 모두 실패했습니다. 잠시 후 다시 시도하거나 종목코드를 확인하세요.`
+      : `데이터를 가져오지 못했습니다 (${symbol}) — query1/query2 × 프록시 ${PROXIES.length}곳 모두 실패했습니다. 잠시 후 다시 시도하거나 종목코드를 확인하세요.`
   );
 }
 
@@ -485,13 +502,13 @@ async function onFetchClick(){
   btn.disabled = true;
   setStatus('데이터를 불러오는 중입니다…', 'pending');
 
-  const startStr = toNaverDateTime(startVal, false);
-  const endStr = toNaverDateTime(endVal, true);
+  const period1 = toUnixSeconds(startVal, false);
+  const period2 = toUnixSeconds(endVal, true);
 
   try{
     const [resA, resB] = await Promise.all([
-      fetchSeries(tickerA, startStr, endStr),
-      fetchSeries(tickerB, startStr, endStr)
+      fetchSeries(tickerA, period1, period2),
+      fetchSeries(tickerB, period1, period2)
     ]);
 
     const seriesA = computeReturns(resA.data);
