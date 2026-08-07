@@ -6,7 +6,7 @@
 <title>변동성 분석기 — 일일 수익률 표준편차 & 정규분포</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --bg: #F2F5F4;
@@ -203,6 +203,7 @@
           <option value="AAPL">AAPL — 애플</option>
           <option value="NVDA">NVDA — 엔비디아</option>
           <option value="TSLA">TSLA — 테슬라</option>
+        </select>
         </select>
       </div>
       <div class="field">
@@ -458,6 +459,10 @@ function setStatus(msg, kind){
 }
 
 async function onFetchClick(){
+  if(typeof Chart === 'undefined'){
+    setStatus('차트 라이브러리(Chart.js)를 불러오지 못했습니다. 인터넷 연결을 확인하거나, 광고 차단기/보안 프로그램이 cdn.jsdelivr.net을 막고 있는지 확인 후 새로고침(F5)해보세요.', 'err');
+    return;
+  }
   const tickerASel = document.getElementById('tickerA');
   const tickerBSel = document.getElementById('tickerB');
   const tickerA = tickerASel.value;
