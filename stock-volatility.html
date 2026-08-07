@@ -87,8 +87,8 @@
   .field select:focus-visible, .field input:focus-visible, button:focus-visible{
     outline:2px solid var(--a); outline-offset:2px;
   }
-  .swatch-a select{ border-left:3px solid var(--a); }
-  .swatch-b select{ border-left:3px solid var(--b); }
+  .swatch-a input{ border-left:3px solid var(--a); }
+  .swatch-b input{ border-left:3px solid var(--b); }
 
   .preset-row{
     display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -176,35 +176,33 @@
     <div class="controls-grid">
       <div class="field swatch-a">
         <label for="tickerA">지수 A</label>
-        <select id="tickerA">
-          <!--
-            ▼ 종목 추가 방법: 아래 형식으로 <option> 한 줄만 추가하면 드롭다운에 나타납니다.
-            <option value="TICKER">표시할 이름</option>
-            value는 Yahoo Finance가 인식하는 티커(미국: AAPL, SPY 등 / 한국: 종목코드+.KS 또는 .KQ)를 넣으면 됩니다.
-          -->
-          <option value="SPY" selected>SPY — S&P500 ETF</option>
-          <option value="QQQ">QQQ — 나스닥100 ETF</option>
-          <option value="DIA">DIA — 다우존스 ETF</option>
-          <option value="IWM">IWM — 러셀2000 ETF</option>
-          <option value="SCHD">SCHD — SCHD</option>
-          <option value="AAPL">AAPL — 애플</option>
-          <option value="NVDA">NVDA — 엔비디아</option>
-          <option value="TSLA">TSLA — 테슬라</option>
-        </select>
+        <input type="text" id="tickerA" list="tickerOptions" value="SPY" placeholder="티커 입력 (예: SPY)" autocomplete="off" spellcheck="false">
       </div>
       <div class="field swatch-b">
         <label for="tickerB">지수 B</label>
-        <select id="tickerB">
-          <option value="SPY">SPY — S&P500 ETF</option>
-          <option value="QQQ" selected>QQQ — 나스닥100 ETF</option>
-          <option value="DIA">DIA — 다우존스 ETF</option>
-          <option value="IWM">IWM — 러셀2000 ETF</option>
-          <option value="SCHD">SCHD — SCHD</option>
-          <option value="AAPL">AAPL — 애플</option>
-          <option value="NVDA">NVDA — 엔비디아</option>
-          <option value="TSLA">TSLA — 테슬라</option>
-        </select>
+        <input type="text" id="tickerB" list="tickerOptions" value="QQQ" placeholder="티커 입력 (예: QQQ)" autocomplete="off" spellcheck="false">
       </div>
+      <!--
+        ▼ 종목(추천 목록) 추가 방법: 아래 datalist에 <option> 한 줄만 추가하면
+        입력창에 자동완성 후보로 나타납니다. 목록에 없는 티커도 자유롭게 직접 입력할 수 있습니다.
+        value는 Yahoo Finance가 인식하는 티커(미국: AAPL, SPY 등 / 한국: 종목코드+.KS 또는 .KQ)를 넣으면 됩니다.
+      -->
+      <datalist id="tickerOptions">
+        <option value="SPY" label="S&P500 ETF">
+        <option value="QQQ" label="나스닥100 ETF">
+        <option value="DIA" label="다우존스 ETF">
+        <option value="IWM" label="러셀2000 ETF">
+        <option value="MAGS" label="MAGS ETF">
+        <option value="SCHD" label="슈드 ETF">
+        <option value="VIG" label="VIG ETF">
+        <option value="VYMI" label="VYMI ETF">
+        <option value="TLT" label="TLT ETF">
+        <option value="O" label="리얼티인컴">
+        <option value="IIPR" label="IIPR">
+        <option value="AAPL" label="애플">
+        <option value="NVDA" label="엔비디아">
+        <option value="TSLA" label="테슬라">
+      </datalist>
       <div class="field">
         <label for="startDate">시작일</label>
         <input type="date" id="startDate">
@@ -396,6 +394,12 @@ function normalPDF(x, mean, sd){
 function fmt(x, digits=3){ return x.toFixed(digits); }
 function fmtDate(d){ return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; }
 
+// 입력한 티커가 datalist 추천 목록에 있으면 "TICKER — 설명" 형태로, 없으면 티커 그대로 표시
+function getTickerLabel(ticker){
+  const opt = document.querySelector(`#tickerOptions option[value="${CSS.escape(ticker)}"]`);
+  return opt ? `${ticker} — ${opt.label}` : ticker;
+}
+
 function renderResultCard(container, key, colorVar, label, dates, stats, hist){
   const card = document.createElement('div');
   card.className = `panel-card result-card ${key}`;
@@ -480,15 +484,17 @@ async function onFetchClick(){
     setStatus('차트 라이브러리(Chart.js)를 불러오지 못했습니다. 인터넷 연결을 확인하거나, 광고 차단기/보안 프로그램이 cdn.jsdelivr.net을 막고 있는지 확인 후 새로고침(F5)해보세요.', 'err');
     return;
   }
-  const tickerASel = document.getElementById('tickerA');
-  const tickerBSel = document.getElementById('tickerB');
-  const tickerA = tickerASel.value;
-  const tickerB = tickerBSel.value;
-  const labelA = tickerASel.selectedOptions[0].textContent;
-  const labelB = tickerBSel.selectedOptions[0].textContent;
+  const tickerA = document.getElementById('tickerA').value.trim().toUpperCase();
+  const tickerB = document.getElementById('tickerB').value.trim().toUpperCase();
+  const labelA = getTickerLabel(tickerA);
+  const labelB = getTickerLabel(tickerB);
   const startVal = document.getElementById('startDate').value;
   const endVal = document.getElementById('endDate').value;
 
+  if(!tickerA || !tickerB){
+    setStatus('지수 A와 지수 B 티커를 모두 입력하세요.', 'err');
+    return;
+  }
   if(!startVal || !endVal){
     setStatus('시작일과 종료일을 모두 선택하세요.', 'err');
     return;
@@ -543,6 +549,12 @@ async function onFetchClick(){
 }
 
 document.getElementById('fetchBtn').addEventListener('click', onFetchClick);
+
+['tickerA','tickerB'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') onFetchClick();
+  });
+});
 </script>
 </body>
 </html>
