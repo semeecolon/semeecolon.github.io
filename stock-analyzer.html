@@ -269,7 +269,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       <h1>📊 주식 통합 분석기</h1>
       <p>Yahoo Finance 일별 종가 1벌로 <b>변동성(일일수익률 분포)</b> 과 <b>편차(이동평균 Z-Score·볼린저밴드)</b> 를 한 번에 계산합니다.</p>
     </div>
-    <button id="themeBtn" type="button" title="테마 전환">🌙 다크</button>
+    <button id="themeBtn" type="button" title="테마 전환" aria-label="다크/라이트 테마 전환">🌙 다크</button>
   </header>
 
   <!-- ══ 공통 컨트롤 ════════════════════════════════════ -->
@@ -279,18 +279,21 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
         <label for="tickerA">종목 A (주종목)</label>
         <div class="tick-wrap">
           <input type="text" id="tickerA" list="tickerOptions" placeholder="AAPL / 005930" autocomplete="off" spellcheck="false">
-          <button type="button" class="sfx-btn" id="sfxA" title="클릭하면 .KS ↔ .KQ 전환">.KS</button>
+          <button type="button" class="sfx-btn" id="sfxA" title="클릭하면 .KS ↔ .KQ 전환"
+                aria-label="종목 A 한국 거래소 접미사 전환 (.KS 코스피 ↔ .KQ 코스닥)">.KS</button>
         </div>
       </div>
       <div class="field f-swap">
         <label>&nbsp;</label>
-        <button type="button" id="swapBtn" title="A와 B 자리 바꾸기">⇄</button>
+        <button type="button" id="swapBtn" title="A와 B 자리 바꾸기"
+                aria-label="종목 A와 종목 B 자리 바꾸기"><span aria-hidden="true">⇄</span></button>
       </div>
       <div class="field swatch-b f-b">
         <label for="tickerB">종목 B (비교 · 선택)</label>
         <div class="tick-wrap">
           <input type="text" id="tickerB" list="tickerOptions" placeholder="비워두면 단일 분석" autocomplete="off" spellcheck="false">
-          <button type="button" class="sfx-btn" id="sfxB" title="클릭하면 .KS ↔ .KQ 전환">.KS</button>
+          <button type="button" class="sfx-btn" id="sfxB" title="클릭하면 .KS ↔ .KQ 전환"
+                aria-label="종목 B 한국 거래소 접미사 전환 (.KS 코스피 ↔ .KQ 코스닥)">.KS</button>
         </div>
       </div>
       <div class="field f-start">
@@ -503,6 +506,12 @@ function num(v, d){
 }
 function fx(x, d){ return (x == null || !isFinite(x)) ? "-" : x.toFixed(d === undefined ? 3 : d); }
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+// 티커(사용자 입력)와 Yahoo meta(프록시를 거쳐 들어오는 외부 문자열)를 innerHTML 에 넣기 전 이스케이프
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
 function hexToRgba(hex, a){
   var h = hex.replace("#","");
   if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
@@ -728,8 +737,12 @@ function computeVolatility(series, startYmd){
   var mean = returns.reduce(function(s,x){ return s+x; }, 0) / n;
   var variance = returns.reduce(function(s,x){ return s + (x-mean)*(x-mean); }, 0) / (n-1);
   var sd = Math.sqrt(variance);
-  var skew = returns.reduce(function(s,x){ return s + Math.pow((x-mean)/sd, 3); }, 0) / n;
-  var kurt = returns.reduce(function(s,x){ return s + Math.pow((x-mean)/sd, 4); }, 0) / n - 3;
+  // 무변동 구간(거래정지 등)에서는 sd=0 → 왜도/첨도가 NaN 이 되므로 퇴화 케이스를 명시적으로 처리
+  var skew = 0, kurt = 0;
+  if (sd > 0){
+    skew = returns.reduce(function(s,x){ return s + Math.pow((x-mean)/sd, 3); }, 0) / n;
+    kurt = returns.reduce(function(s,x){ return s + Math.pow((x-mean)/sd, 4); }, 0) / n - 3;
+  }
 
   // 히스토그램 (밀도)
   var mn = Math.min.apply(null, returns), mx = Math.max.apply(null, returns);
@@ -801,6 +814,7 @@ function getSignal(z){
   return             {label:"강한 매도",   color:"#b02418", emoji:"🔴🔴"};
 }
 function normalPDF(x, mean, sd){
+  if (!(sd > 0) || !isFinite(sd)) return 0;   // sd=0 이면 곡선을 그리지 않음 (Infinity/NaN 방지)
   return (1/(sd*Math.sqrt(2*Math.PI))) * Math.exp(-((x-mean)*(x-mean))/(2*sd*sd));
 }
 function tickerLabel(sym){
@@ -838,7 +852,7 @@ function renderVolatility(){
     var card = document.createElement("div");
     card.className = "panel vcard " + k.toLowerCase();
     card.innerHTML =
-      '<h3>' + d.label + '</h3>' +
+      '<h3>' + esc(d.label) + '</h3>' +
       '<div class="sub">' + fmtYmdDash(v.dates[0]) + " ~ " + fmtYmdDash(v.dates[v.dates.length-1]) +
         " · 거래일 " + v.n + "일</div>" +
       '<div class="stat-grid">' +
@@ -893,7 +907,7 @@ function renderDevTargetTabs(){
     var d = state[k];
     return '<button type="button" data-k="' + k + '"' +
            (state.devTarget === k ? ' class="active"' : '') + '>' +
-           '<span class="dot"></span>' + d.symbol + '</button>';
+           '<span class="dot"></span>' + esc(d.symbol) + '</button>';
   }).join("");
   grp.querySelectorAll("button").forEach(function(b){
     b.addEventListener("click", function(){
@@ -933,12 +947,12 @@ function renderDeviation(){
   sb.style.border = "1px solid " + hexToRgba(sig.color, 0.5);
   sb.innerHTML =
     '<div class="sig-title" style="color:' + sig.color + '">' + sig.emoji + " " + sig.label +
-      ' <span style="font-weight:400;font-size:12px;color:var(--mute)">· ' + d.label + '</span></div>' +
+      ' <span style="font-weight:400;font-size:12px;color:var(--mute)">· ' + esc(d.label) + '</span></div>' +
     '<div class="sig-body">' +
       "현재 Z-Score <b>" + (dev.lastZ > 0 ? "+" : "") + num(dev.lastZ) + "σ</b>" +
       " &nbsp;|&nbsp; MA" + dev.W + " 대비 <b>" + (dev.lastClose > dev.lastMa ? "+" : "") +
       num(dev.lastClose - dev.lastMa) + " (" + ((dev.lastClose - dev.lastMa) / dev.lastMa * 100).toFixed(2) + "%)</b>" +
-      " &nbsp;|&nbsp; 기간 내 백분위 <b>상위 " + (100 - dev.pctl).toFixed(1) + "%</b><br>" +
+      " &nbsp;|&nbsp; 기간 중 Z가 현재 이하였던 날 <b>" + dev.pctl.toFixed(1) + "%</b><br>" +
       "Z≤-2 발생 <b>" + dev.below2 + "회</b> (" + (dev.below2 / dev.zArr.length * 100).toFixed(1) + "%)" +
       " &nbsp;|&nbsp; Z≥+2 발생 <b>" + dev.above2 + "회</b> (" + (dev.above2 / dev.zArr.length * 100).toFixed(1) + "%)" +
     "</div>";
@@ -1052,7 +1066,7 @@ function renderSummary(){
   var cards = [];
   if (dev){
     var sig = getSignal(dev.lastZ);
-    cards.push(["현재가", num(dev.lastClose) + (d.currency ? " " + d.currency : ""), cssVar("--ink")]);
+    cards.push(["현재가", num(dev.lastClose) + (d.currency ? " " + esc(d.currency) : ""), cssVar("--ink")]);
     cards.push(["MA" + dev.W, num(dev.lastMa), cssVar("--ma")]);
     cards.push(["Z-Score", (dev.lastZ > 0 ? "+" : "") + num(dev.lastZ) + "σ",
                 dev.lastZ >= 1.5 ? cssVar("--sell") : dev.lastZ <= -1.5 ? cssVar("--buy") : cssVar("--ink")]);
