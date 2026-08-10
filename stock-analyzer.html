@@ -88,7 +88,17 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 /* 시작일·종료일: 140px 아래로 좁아지면 auto-fit 이 한 열로 떨어뜨린다 (360px 부터 2열) */
 .date-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
   gap:12px 10px;align-items:end;min-width:0;}
-.date-pair input[type=date]{text-align:left;}   /* iOS 에서 값이 가운데로 몰리는 것 방지 */
+/* min-height 로 바닥을 깔아 iOS 에서 다른 입력창보다 납작해지는 것을 막는다 */
+.date-pair input[type=date]{text-align:left;min-height:36px;}
+/* iOS(WebKit)는 날짜 값을 자체 박스로 그려서 정렬·여백이 다른 입력창과 어긋난다 */
+.date-pair input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;}
+/* iOS 에만 있는 속성으로 iOS Safari 를 특정. 이 브라우저에는 달력 표시가 없어 직접 붙인다 */
+@supports (-webkit-touch-callout:none){
+  .date-field{position:relative;}
+  .date-field::after{content:"▾";position:absolute;right:11px;bottom:12px;
+    color:var(--mute);font-size:12px;line-height:1;pointer-events:none;}
+  .date-pair input[type=date]{padding-right:28px;-webkit-appearance:none;appearance:none;}
+}
 .field label{
   display:block;font-size:11px;font-weight:600;color:var(--mute);
   text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;
@@ -244,6 +254,10 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .stat-grid .lbl{color:var(--mute);}
 .stat-grid .val{color:var(--ink);font-weight:600;text-align:right;}
 .stat-grid .val.big{font-size:15px;}
+/* Chart.js 는 캔버스에 픽셀 폭을 직접 박아둔다. 가로모드에서 늘어난 그 폭이 세로 복귀 후
+   컨테이너를 되레 넓히면서 "컨테이너가 넓으니 캔버스도 넓게" 상태로 굳는다.
+   max-width 가 인라인 width 를 눌러주면 되먹임이 끊겨 원래 폭으로 돌아온다. */
+canvas{max-width:100%;}
 .chart-box{position:relative;height:280px;}
 
 /* ── 편차 섹션 ────────────────────────────────────────── */
@@ -377,11 +391,11 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       </div>
       <!-- 두 날짜는 한 묶음. 폭이 모자라면 auto-fit 이 알아서 세로로 떨어뜨린다. -->
       <div class="date-pair f-dates">
-        <div class="field">
+        <div class="field date-field">
           <label for="startDate">시작일</label>
           <input type="date" id="startDate">
         </div>
-        <div class="field">
+        <div class="field date-field">
           <label for="endDate">종료일</label>
           <input type="date" id="endDate">
         </div>
@@ -615,6 +629,23 @@ function esc(s){
   return String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+// 두 색을 섞어 '불투명한' 틴트를 만든다. 반투명으로 깔면 뒤의 모눈 배경이 비쳐 글자가 읽기 나빠진다.
+function toRgb(c){
+  c = String(c).trim();
+  if (c.charAt(0) === "#"){
+    var h = c.slice(1);
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h, 16);
+    return [(n>>16)&255, (n>>8)&255, n&255];
+  }
+  var m = c.match(/(\d+)\D+(\d+)\D+(\d+)/);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+function mixColor(front, back, t){
+  var A = toRgb(front), B = toRgb(back);
+  if (!A || !B) return front;
+  return "rgb(" + A.map(function(v, i){ return Math.round(v * t + B[i] * (1 - t)); }).join(",") + ")";
 }
 function hexToRgba(hex, a){
   var h = hex.replace("#","");
@@ -1220,10 +1251,11 @@ function renderDeviation(){
   var isA = src.key === "A";
   var priceColor = cssVar(isA ? "--a" : "--b");
 
-  // ── 신호 박스 (양쪽 테마에서 자연스럽도록 반투명 틴트)
+  // ── 신호 박스 (패널색과 섞은 불투명 틴트 — 뒤의 모눈 배경이 비치지 않게)
+  var panelBg = cssVar("--panel");
   sb.style.display = "block";
-  sb.style.background = hexToRgba(sig.color, 0.13);
-  sb.style.border = "1px solid " + hexToRgba(sig.color, 0.5);
+  sb.style.background = mixColor(sig.color, panelBg, 0.12);
+  sb.style.border = "1px solid " + mixColor(sig.color, panelBg, 0.45);
   sb.innerHTML =
     '<div class="sig-title" style="color:' + sig.color + '">' + sig.emoji + " " + sig.label +
       ' <span style="font-weight:400;font-size:12px;color:var(--mute)">· ' + esc(d.label) + '</span></div>' +
@@ -1390,6 +1422,11 @@ document.querySelectorAll("#tabBar button").forEach(function(b){
 window.matchMedia("(max-width: 899px)").addEventListener("change", function(){
   if (state.A) renderAll();   // 축 눈금 밀도 등 모바일/데스크톱 옵션 재적용
 });
+// 회전처럼 브레이크포인트를 넘지 않는 크기 변화에서도 캔버스를 즉시 다시 맞춘다
+var vpTimer = null;
+function onViewportChange(){ clearTimeout(vpTimer); vpTimer = setTimeout(resizeCharts, 150); }
+window.addEventListener("resize", onViewportChange);
+window.addEventListener("orientationchange", onViewportChange);
 
 /* ═══════════════════════════════════════════════════════════
    볼린저 차트 높이 드래그 조절
