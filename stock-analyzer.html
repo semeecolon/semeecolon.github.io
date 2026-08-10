@@ -25,6 +25,7 @@
   /* 이동평균 선택 표시 — 미국식 파랑 / 한국식 빨강, 원색 대신 알파를 섞어 눈이 편하게 */
   --ma-us:#58a6ff; --ma-us-bg:rgba(88,166,255,.26);
   --ma-kr:#f8756d; --ma-kr-bg:rgba(248,117,109,.26);
+  --focus-ring:rgba(88,166,255,.30);
   --paper:transparent;
 }
 :root[data-theme="light"]{
@@ -39,6 +40,7 @@
   --ma:#C9721E; --bar-neutral:#BFC9D2;
   --ma-us:#2B52D8; --ma-us-bg:rgba(52,97,253,.15);
   --ma-kr:#C6304A; --ma-kr-bg:rgba(224,67,90,.15);
+  --focus-ring:rgba(52,97,253,.20);
   --paper:rgba(27,36,48,0.05);
 }
 
@@ -93,17 +95,47 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   background:var(--panel-2);color:var(--ink);
 }
 .field input:focus-visible,button:focus-visible{outline:2px solid var(--a);outline-offset:2px;}
-.swatch-a input{border-left:3px solid var(--a);}
-.swatch-b input{border-left:3px solid var(--b);}
-.tick-wrap{position:relative;}
-.tick-wrap input{padding-right:52px;}
+.swatch-a .tick-wrap{border-left:3px solid var(--a);}
+.swatch-b .tick-wrap{border-left:3px solid var(--b);}
+
+/* 종목 입력 = 입력창 + 접미사 뱃지 + 목록 버튼을 한 테두리 안에 묶은 콤보박스.
+   네이티브 datalist 의 ▼ 표시와 겹침을 없애기 위해 직접 구성한다. */
+.tick-wrap{position:relative;display:flex;align-items:center;gap:3px;padding-right:5px;
+  border:1px solid var(--border);border-radius:7px;background:var(--panel-2);}
+.tick-wrap:hover{border-color:var(--ink-soft);}
+.tick-wrap:focus-within{border-color:var(--a);box-shadow:0 0 0 2px var(--focus-ring);}
+/* 위 두 규칙이 테두리 전체를 덮으므로, 좌측 종목 구분색은 다시 지정해 유지한다 */
+.swatch-a .tick-wrap:hover,.swatch-a .tick-wrap:focus-within{border-left-color:var(--a);}
+.swatch-b .tick-wrap:hover,.swatch-b .tick-wrap:focus-within{border-left-color:var(--b);}
+.tick-wrap input{flex:1 1 auto;width:auto;min-width:0;border:none;background:none;border-radius:7px 0 0 7px;}
+.tick-wrap input:focus-visible{outline:none;}
 .sfx-btn{
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  display:none;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;
+  display:none;flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;
   background:var(--panel);border:1px solid var(--b);color:var(--b);
   border-radius:5px;padding:3px 6px;cursor:pointer;line-height:1;
 }
 .sfx-btn.on{display:block;}
+.combo-btn{flex:0 0 auto;background:none;border:none;color:var(--mute);
+  cursor:pointer;font-size:14px;line-height:1;padding:6px 4px;}
+.combo-btn:hover{color:var(--ink);}
+
+.combo-list{
+  position:absolute;top:calc(100% + 5px);left:-1px;right:-1px;z-index:60;
+  display:none;margin:0;padding:4px;list-style:none;
+  max-height:min(280px,46vh);overflow-y:auto;overscroll-behavior:contain;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 10px 28px rgba(0,0,0,.28);
+}
+.combo-list.open{display:block;}
+.combo-item{display:flex;align-items:baseline;gap:8px;min-width:0;
+  padding:8px 10px;border-radius:5px;cursor:pointer;font-size:13px;}
+.combo-item:hover,.combo-item.on{background:var(--panel-2);}
+.combo-item .sym{flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+.combo-item .nm{flex:1 1 auto;min-width:0;color:var(--ink-soft);font-size:12px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.combo-item mark{background:none;color:var(--a);font-weight:700;}
+.combo-sep{margin:6px 4px 2px;padding:0 6px 4px;font-size:10px;color:var(--mute);
+  border-top:1px dashed var(--border);padding-top:6px;letter-spacing:.04em;}
 #swapBtn{
   background:var(--panel-2);border:1px solid var(--border);color:var(--ink-soft);
   border-radius:7px;height:38px;width:38px;cursor:pointer;font-size:15px;line-height:1;
@@ -307,9 +339,12 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       <div class="field swatch-a f-a">
         <label for="tickerA">종목 A (주종목)</label>
         <div class="tick-wrap">
-          <input type="text" id="tickerA" list="tickerOptions" placeholder="AAPL / 005930" autocomplete="off" spellcheck="false">
+          <input type="text" id="tickerA" placeholder="AAPL / 005930" autocomplete="off" spellcheck="false"
+                role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="listA">
           <button type="button" class="sfx-btn" id="sfxA" title="클릭하면 .KS ↔ .KQ 전환"
                 aria-label="종목 A 한국 거래소 접미사 전환 (.KS 코스피 ↔ .KQ 코스닥)">.KS</button>
+          <button type="button" class="combo-btn" id="cbA" tabindex="-1" aria-label="종목 A 프리셋 목록 열기">▾</button>
+          <ul class="combo-list" id="listA" role="listbox" aria-label="종목 프리셋"></ul>
         </div>
       </div>
       <div class="field f-swap">
@@ -320,9 +355,12 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       <div class="field swatch-b f-b">
         <label for="tickerB">종목 B (비교 · 선택)</label>
         <div class="tick-wrap">
-          <input type="text" id="tickerB" list="tickerOptions" placeholder="비워두면 단일 분석" autocomplete="off" spellcheck="false">
+          <input type="text" id="tickerB" placeholder="비워두면 단일 분석" autocomplete="off" spellcheck="false"
+                role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="listB">
           <button type="button" class="sfx-btn" id="sfxB" title="클릭하면 .KS ↔ .KQ 전환"
                 aria-label="종목 B 한국 거래소 접미사 전환 (.KS 코스피 ↔ .KQ 코스닥)">.KS</button>
+          <button type="button" class="combo-btn" id="cbB" tabindex="-1" aria-label="종목 B 프리셋 목록 열기">▾</button>
+          <ul class="combo-list" id="listB" role="listbox" aria-label="종목 프리셋"></ul>
         </div>
       </div>
       <div class="field f-start">
@@ -340,9 +378,11 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
     </div>
 
     <!--
-      ▼ 프리셋 종목 추가 방법: 아래 datalist에 <option> 한 줄만 추가하면 입력창 자동완성 후보로 나타납니다.
+      ▼ 프리셋 종목 추가 방법: 아래 datalist에 <option> 한 줄만 추가하면 입력창 목록에 나타납니다.
         목록에 없는 티커도 자유롭게 직접 입력할 수 있습니다.
         value는 Yahoo Finance 티커 (미국: AAPL / 한국: 종목코드 또는 종목코드.KS·.KQ)
+        ※ 브라우저 기본 자동완성 대신 직접 만든 목록을 쓰므로, 이 datalist는 화면에 그려지지 않고
+          데이터 보관 용도로만 쓰입니다. 추가 방법은 그대로입니다.
     -->
     <datalist id="tickerOptions">
       <option value="SPY" label="S&amp;P500 ETF">
@@ -656,18 +696,159 @@ function syncSuffixBadge(k){
   btn.classList.toggle("on", show);
   btn.textContent = sfxState[k];
 }
-["A","B"].forEach(function(k){
+/* ═══════════════════════════════════════════════════════════
+   종목 입력 콤보박스
+   네이티브 datalist 는 필터 규칙·정렬·모양을 바꿀 수 없어 직접 만든다.
+   규칙: 목록에는 항상 전체 종목이 들어가고, 입력값과 관련된 것이 위로 올라간다.
+        (입력값이 비어도, 지우는 중에도 목록이 사라지지 않아 동작이 늘 같다)
+   ═══════════════════════════════════════════════════════════ */
+var PRESETS = Array.prototype.map.call(
+  document.querySelectorAll("#tickerOptions option"),
+  function(o){ return { sym: (o.value || "").toUpperCase(), name: o.label || "" }; }
+);
+var comboOpen = { A:false, B:false };
+var comboIdx  = { A:-1,    B:-1    };   // 키보드로 지목한 항목
+var comboRows = { A:[],    B:[]    };   // 현재 그려진 순서의 심볼
+
+// 관련도. 0이어도 목록에서 빼지 않고 아래쪽에 둔다.
+function presetScore(p, q){
+  if (!q) return 1;
+  if (p.sym === q) return 5;                        // 완전 일치
+  if (p.sym.indexOf(q) === 0) return 4;             // 티커 앞부분 일치
+  if (p.sym.indexOf(q) >= 0) return 3;              // 티커 중간 포함
+  if (p.name.toUpperCase().indexOf(q) >= 0) return 2; // 종목명 포함 (삼성 → 005930.KS)
+  return 0;
+}
+// 일치 구간 강조. 이스케이프 후 자르면 &·< 때문에 위치가 어긋나므로 원문에서 자른 뒤 각각 이스케이프한다.
+function hlMatch(text, q){
+  if (!q) return esc(text);
+  var i = text.toUpperCase().indexOf(q);
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+}
+
+function renderCombo(k){
+  var q = $("ticker" + k).value.toUpperCase().trim();
+  var ranked = PRESETS.map(function(p, i){ return { p:p, s:presetScore(p, q), i:i }; });
+  ranked.sort(function(a, b){ return b.s - a.s || a.i - b.i; });   // 동점이면 원래 순서 유지
+
+  var hasHit = !!q && ranked.length > 0 && ranked[0].s > 0;
+  var html = "", rows = [], sepDone = false;
+  ranked.forEach(function(x){
+    if (hasHit && !sepDone && x.s === 0){
+      html += '<li class="combo-sep" role="presentation">그 외 종목</li>';
+      sepDone = true;
+    }
+    var oid = "opt" + k + "-" + rows.length;   // aria-activedescendant 로 가리키기 위한 id
+    rows.push(x.p.sym);
+    html += '<li class="combo-item" role="option" id="' + oid + '" aria-selected="false" data-sym="' + esc(x.p.sym) + '">' +
+              '<span class="sym">' + hlMatch(x.p.sym, q) + '</span>' +
+              '<span class="nm">'  + hlMatch(x.p.name, q) + '</span></li>';
+  });
+  comboRows[k] = rows;
+  $("list" + k).innerHTML = html;
+  markCombo(k);
+}
+function markCombo(k){
   var inp = $("ticker" + k);
+  var items = $("list" + k).querySelectorAll(".combo-item");
+  items.forEach(function(el, i){
+    var on = (i === comboIdx[k]);
+    el.classList.toggle("on", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  // 지목된 항목을 보조기기에 알린다 (없으면 속성 자체를 지운다)
+  var act = comboIdx[k] >= 0 ? items[comboIdx[k]] : null;
+  if (act){ inp.setAttribute("aria-activedescendant", act.id); act.scrollIntoView({ block:"nearest" }); }
+  else { inp.removeAttribute("aria-activedescendant"); }
+}
+function openCombo(k){
+  renderCombo(k);
+  $("list" + k).classList.add("open");
+  $("ticker" + k).setAttribute("aria-expanded", "true");
+  comboOpen[k] = true;
+}
+function closeCombo(k){
+  $("list" + k).classList.remove("open");
+  var inp = $("ticker" + k);
+  inp.setAttribute("aria-expanded", "false");
+  inp.removeAttribute("aria-activedescendant");
+  comboOpen[k] = false;
+  comboIdx[k] = -1;
+}
+function chooseCombo(k, sym){
+  var inp = $("ticker" + k);
+  inp.value = sym;
+  syncSuffixBadge(k);
+  closeCombo(k);
+  inp.focus();
+  saveSettings();
+}
+
+["A","B"].forEach(function(k){
+  var inp  = $("ticker" + k);
+  var wrap = inp.parentNode;
+
   inp.addEventListener("input", function(){
     var pos = this.selectionStart;
     this.value = this.value.toUpperCase();
     try { this.setSelectionRange(pos, pos); } catch(e) {}
     syncSuffixBadge(k);
+    comboIdx[k] = -1;   // 타이핑 중엔 지목 없음 → Enter 는 그대로 분석 실행
+    openCombo(k);       // 전부 지워도 목록은 열린 채 전체를 보여준다
   });
-  inp.addEventListener("keydown", function(e){ if (e.key === "Enter") analyze(); });
+  inp.addEventListener("focus", function(){ openCombo(k); });
+
+  inp.addEventListener("keydown", function(e){
+    if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      if (!comboOpen[k]) openCombo(k);
+      var n = comboRows[k].length;
+      if (!n) return;
+      comboIdx[k] = (e.key === "ArrowDown")
+        ? (comboIdx[k] + 1) % n
+        : (comboIdx[k] <= 0 ? n - 1 : comboIdx[k] - 1);
+      markCombo(k);
+      return;
+    }
+    if (e.key === "Enter"){
+      if (comboOpen[k] && comboIdx[k] >= 0){ e.preventDefault(); chooseCombo(k, comboRows[k][comboIdx[k]]); return; }
+      closeCombo(k);
+      analyze();
+      return;
+    }
+    if (e.key === "Escape") closeCombo(k);
+  });
+
+  // 항목 선택 — pointerdown 으로 처리해야 blur 보다 먼저 잡히고, 기본동작을 막아 포커스가 유지된다.
+  // 목록 배경(스크롤 영역)에서는 막지 않아 터치 스크롤이 그대로 동작한다.
+  $("list" + k).addEventListener("pointerdown", function(e){
+    var li = e.target.closest ? e.target.closest(".combo-item") : null;
+    if (!li) return;
+    e.preventDefault();
+    chooseCombo(k, li.dataset.sym);
+  });
+  $("cb" + k).addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    var wasOpen = comboOpen[k];
+    inp.focus();                       // focus 핸들러가 열 수 있으므로 이전 상태로 판단
+    if (wasOpen) closeCombo(k); else openCombo(k);
+  });
+  // Tab 등으로 포커스가 밖으로 나갈 때만 닫는다 (relatedTarget 이 null 인 경우는
+  // 바깥 pointerdown 쪽에서 처리 — 모바일에서 목록을 스크롤할 때 닫히지 않게 하기 위함)
+  wrap.addEventListener("focusout", function(e){
+    if (e.relatedTarget && !wrap.contains(e.relatedTarget)) closeCombo(k);
+  });
+
   $("sfx" + k).addEventListener("click", function(){
     sfxState[k] = (sfxState[k] === ".KS") ? ".KQ" : ".KS";
     syncSuffixBadge(k);
+  });
+});
+
+document.addEventListener("pointerdown", function(e){
+  ["A","B"].forEach(function(k){
+    if (comboOpen[k] && !$("ticker" + k).parentNode.contains(e.target)) closeCombo(k);
   });
 });
 $("swapBtn").addEventListener("click", function(){
