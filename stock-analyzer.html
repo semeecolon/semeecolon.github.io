@@ -361,13 +361,14 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
     <div class="opt-row" id="presetRow">
       <span class="opt-label">빠른 기간</span>
-      <button type="button" class="pill" data-months="1">1개월</button>
-      <button type="button" class="pill" data-months="3">3개월</button>
-      <button type="button" class="pill" data-months="6">6개월</button>
-      <button type="button" class="pill" data-months="12">1년</button>
-      <button type="button" class="pill" data-months="24">2년</button>
-      <button type="button" class="pill" data-months="36">3년</button>
-      <button type="button" class="pill" data-months="60">5년</button>
+      <!-- 축약 표기로 모바일에서 한 줄에 들어가게 한다. 전체 명칭은 title/aria-label 로 남긴다. -->
+      <button type="button" class="pill" data-months="1"  title="1개월" aria-label="1개월">1M</button>
+      <button type="button" class="pill" data-months="3"  title="3개월" aria-label="3개월">3M</button>
+      <button type="button" class="pill" data-months="6"  title="6개월" aria-label="6개월">6M</button>
+      <button type="button" class="pill" data-months="12" title="1년"   aria-label="1년">1Y</button>
+      <button type="button" class="pill" data-months="24" title="2년"   aria-label="2년">2Y</button>
+      <button type="button" class="pill" data-months="36" title="3년"   aria-label="3년">3Y</button>
+      <button type="button" class="pill" data-months="60" title="5년"   aria-label="5년">5Y</button>
     </div>
 
     <div class="opt-row" id="maRow">
