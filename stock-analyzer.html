@@ -623,7 +623,7 @@ document.querySelectorAll(".pill.ma").forEach(function(b){
   });
 });
 ["startDate","endDate"].forEach(function(id){
-  $(id).addEventListener("input", function(){ state.months = null; markPreset(null); });
+  $(id).addEventListener("input", function(){ state.months = null; markPreset(null); saveSettings(); });
 });
 
 /* ═══════════════════════════════════════════════════════════
@@ -702,7 +702,7 @@ function loadSettings(){
   $("tickerB").value = (s && s.b != null) ? s.b : "QQQ";
   sfxState.A = (s && s.sfxA) || ".KS";
   sfxState.B = (s && s.sfxB) || ".KS";
-  state.W = (s && s.W) || 20;
+  state.W = parseInt(s && s.W, 10) || 20;
   state.maSet = (s && s.maSet === "kr") ? "kr" : "us";
   state.devTarget = (s && s.devTarget === "B") ? "B" : "A";
 
@@ -715,6 +715,14 @@ function loadSettings(){
   } else {
     applyPreset(12);
   }
+  // 예전 버전에서 저장된 값(예: MA100)은 현재 버튼에 없어 아무것도 선택되지 않은 채
+  // 계산만 그 값으로 돌아간다. 지원하는 조합이 아니면 기본값으로 되돌려 항상 1개가 활성이 되게 한다.
+  var hasPill = false;
+  document.querySelectorAll(".pill.ma").forEach(function(b){
+    if (parseInt(b.dataset.w, 10) === state.W && b.dataset.set === state.maSet) hasPill = true;
+  });
+  if (!hasPill){ state.W = 20; state.maSet = "us"; }
+
   markMA(state.W, state.maSet);
   syncSuffixBadge("A"); syncSuffixBadge("B");
 }
