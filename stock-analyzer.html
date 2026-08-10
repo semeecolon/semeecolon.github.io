@@ -952,7 +952,8 @@ function renderDeviation(){
       "현재 Z-Score <b>" + (dev.lastZ > 0 ? "+" : "") + num(dev.lastZ) + "σ</b>" +
       " &nbsp;|&nbsp; MA" + dev.W + " 대비 <b>" + (dev.lastClose > dev.lastMa ? "+" : "") +
       num(dev.lastClose - dev.lastMa) + " (" + ((dev.lastClose - dev.lastMa) / dev.lastMa * 100).toFixed(2) + "%)</b>" +
-      " &nbsp;|&nbsp; 기간 중 Z가 현재 이하였던 날 <b>" + dev.pctl.toFixed(1) + "%</b><br>" +
+      ' &nbsp;|&nbsp; <span title="기간 내 Z-Score 백분위. 0%에 가까울수록 기간 중 최저 수준, 100%에 가까울수록 최고 수준입니다.">' +
+      "기간 내 백분위 <b>" + dev.pctl.toFixed(1) + "%</b></span><br>" +
       "Z≤-2 발생 <b>" + dev.below2 + "회</b> (" + (dev.below2 / dev.zArr.length * 100).toFixed(1) + "%)" +
       " &nbsp;|&nbsp; Z≥+2 발생 <b>" + dev.above2 + "회</b> (" + (dev.above2 / dev.zArr.length * 100).toFixed(1) + "%)" +
     "</div>";
