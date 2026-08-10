@@ -104,6 +104,9 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   border:1px solid var(--border);border-radius:7px;background:var(--panel-2);}
 .tick-wrap:hover{border-color:var(--ink-soft);}
 .tick-wrap:focus-within{border-color:var(--a);box-shadow:0 0 0 2px var(--focus-ring);}
+/* 위 두 규칙이 테두리 전체를 덮으므로, 좌측 종목 구분색은 다시 지정해 유지한다 */
+.swatch-a .tick-wrap:hover,.swatch-a .tick-wrap:focus-within{border-left-color:var(--a);}
+.swatch-b .tick-wrap:hover,.swatch-b .tick-wrap:focus-within{border-left-color:var(--b);}
 .tick-wrap input{flex:1 1 auto;width:auto;min-width:0;border:none;background:none;border-radius:7px 0 0 7px;}
 .tick-wrap input:focus-visible{outline:none;}
 .sfx-btn{
@@ -736,8 +739,9 @@ function renderCombo(k){
       html += '<li class="combo-sep" role="presentation">그 외 종목</li>';
       sepDone = true;
     }
+    var oid = "opt" + k + "-" + rows.length;   // aria-activedescendant 로 가리키기 위한 id
     rows.push(x.p.sym);
-    html += '<li class="combo-item" role="option" data-sym="' + esc(x.p.sym) + '">' +
+    html += '<li class="combo-item" role="option" id="' + oid + '" aria-selected="false" data-sym="' + esc(x.p.sym) + '">' +
               '<span class="sym">' + hlMatch(x.p.sym, q) + '</span>' +
               '<span class="nm">'  + hlMatch(x.p.name, q) + '</span></li>';
   });
@@ -746,9 +750,17 @@ function renderCombo(k){
   markCombo(k);
 }
 function markCombo(k){
+  var inp = $("ticker" + k);
   var items = $("list" + k).querySelectorAll(".combo-item");
-  items.forEach(function(el, i){ el.classList.toggle("on", i === comboIdx[k]); });
-  if (comboIdx[k] >= 0 && items[comboIdx[k]]) items[comboIdx[k]].scrollIntoView({ block:"nearest" });
+  items.forEach(function(el, i){
+    var on = (i === comboIdx[k]);
+    el.classList.toggle("on", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  // 지목된 항목을 보조기기에 알린다 (없으면 속성 자체를 지운다)
+  var act = comboIdx[k] >= 0 ? items[comboIdx[k]] : null;
+  if (act){ inp.setAttribute("aria-activedescendant", act.id); act.scrollIntoView({ block:"nearest" }); }
+  else { inp.removeAttribute("aria-activedescendant"); }
 }
 function openCombo(k){
   renderCombo(k);
@@ -758,7 +770,9 @@ function openCombo(k){
 }
 function closeCombo(k){
   $("list" + k).classList.remove("open");
-  $("ticker" + k).setAttribute("aria-expanded", "false");
+  var inp = $("ticker" + k);
+  inp.setAttribute("aria-expanded", "false");
+  inp.removeAttribute("aria-activedescendant");
   comboOpen[k] = false;
   comboIdx[k] = -1;
 }
