@@ -212,13 +212,16 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 
 /* 종목 전환 (편차 섹션 내부) — 두 종목을 담은 영역 전체가 하나의 전환 버튼.
    어디를 눌러도 반대쪽 종목으로 바뀌므로 작은 버튼을 겨냥할 필요가 없다. */
-#devTargetGrp{display:none;}
-.dev-toggle{display:flex;align-items:center;gap:2px;cursor:pointer;font-family:inherit;
+/* min-width:0 이 없으면 flex 항목이 내용보다 작아지지 못해 긴 티커에서 화면을 넘긴다 */
+#devTargetGrp{display:none;min-width:0;}
+.dev-toggle{display:flex;align-items:center;gap:2px;cursor:pointer;font-family:inherit;max-width:100%;
   background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:3px;}
 .dev-toggle:hover{border-color:var(--ink-soft);}
-.dev-toggle .seg{display:flex;align-items:center;justify-content:center;gap:6px;
+.dev-toggle .seg{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;overflow:hidden;
   font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
   color:var(--mute);border-radius:999px;padding:6px 12px;min-height:30px;white-space:nowrap;}
+/* 긴 티커가 알약 밖으로 삐져나오지 않게 잘라준다 */
+.dev-toggle .seg .tk{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .dev-toggle .seg[data-k="A"]{--tcol:var(--a);}
 .dev-toggle .seg[data-k="B"]{--tcol:var(--b);}
 .dev-toggle .seg .dot{width:7px;height:7px;border-radius:50%;background:var(--tcol);flex:0 0 auto;}
@@ -300,7 +303,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   /* 전환 버튼을 한 줄 전체로 — 터치 목표를 최대한 크게 */
   #devTargetGrp{flex:1 1 100%;}
   .dev-toggle{width:100%;}
-  .dev-toggle .seg{flex:1 1 0;min-width:0;}
+  .dev-toggle .seg{flex:1 1 0;}
 
   .vol-grid{grid-template-columns:1fr;}   /* 변동성: A·B 세로 스택 (둘 다 표시) */
   .chart-box{height:240px;}
@@ -1162,27 +1165,37 @@ function renderDevTargetTabs(){
   if (!state.B || !state.B.dev){ grp.innerHTML = ""; grp.style.display = "none"; return; }
   grp.style.display = "flex";
 
-  var other = (state.devTarget === "A") ? "B" : "A";
-  var otherSym = esc(state[other].symbol);
   // 두 종목을 감싼 영역 전체가 버튼 하나 — 어디를 눌러도 반대쪽으로 전환된다.
   // 가운데 ⇄ 로 '탭 두 개'가 아니라 '전환 스위치'임을 드러낸다.
   grp.innerHTML =
-    '<button type="button" class="dev-toggle" title="클릭하면 ' + otherSym + ' 로 전환"' +
-      ' aria-label="편차분석 대상 ' + esc(state[state.devTarget].symbol) +
-      ', 누르면 ' + otherSym + ' 로 전환">' +
-      '<span class="seg' + (state.devTarget === "A" ? " on" : "") + '" data-k="A">' +
-        '<span class="dot"></span>' + esc(state.A.symbol) + '</span>' +
+    '<button type="button" class="dev-toggle">' +
+      '<span class="seg" data-k="A"><span class="dot"></span>' +
+        '<span class="tk">' + esc(state.A.symbol) + '</span></span>' +
       '<span class="swap-ic" aria-hidden="true">⇄</span>' +
-      '<span class="seg' + (state.devTarget === "B" ? " on" : "") + '" data-k="B">' +
-        '<span class="dot"></span>' + esc(state.B.symbol) + '</span>' +
+      '<span class="seg" data-k="B"><span class="dot"></span>' +
+        '<span class="tk">' + esc(state.B.symbol) + '</span></span>' +
     '</button>';
 
   grp.querySelector(".dev-toggle").addEventListener("click", function(){
     state.devTarget = (state.devTarget === "A") ? "B" : "A";
     saveSettings();
-    renderDevTargetTabs();
+    paintDevToggle();     // DOM 을 새로 만들지 않으므로 키보드 포커스가 버튼에 그대로 남는다
     renderDeviation();
     renderSummary();
+  });
+  paintDevToggle();
+}
+
+// 선택 표시와 설명만 갱신 (구조는 건드리지 않음)
+function paintDevToggle(){
+  var btn = $("devTargetGrp").querySelector(".dev-toggle");
+  if (!btn) return;
+  var other = (state.devTarget === "A") ? "B" : "A";
+  btn.title = "클릭하면 " + state[other].symbol + " 로 전환";
+  btn.setAttribute("aria-label", "편차분석 대상 " + state[state.devTarget].symbol +
+    ", 누르면 " + state[other].symbol + " 로 전환");
+  btn.querySelectorAll(".seg").forEach(function(s){
+    s.classList.toggle("on", s.dataset.k === state.devTarget);
   });
 }
 
