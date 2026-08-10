@@ -22,6 +22,9 @@
   --up1:#ffb08a; --up2:#ff6b6b; --up3:#96504f;
   --dn1:#7fb8ff; --dn2:#4d8dff; --dn3:#4a6a9e;
   --ma:#f0883e; --bar-neutral:#39414b;
+  /* 이동평균 선택 표시 — 미국식 파랑 / 한국식 빨강, 원색 대신 알파를 섞어 눈이 편하게 */
+  --ma-us:#58a6ff; --ma-us-bg:rgba(88,166,255,.26);
+  --ma-kr:#f8756d; --ma-kr-bg:rgba(248,117,109,.26);
   --paper:transparent;
 }
 :root[data-theme="light"]{
@@ -34,6 +37,8 @@
   --up1:#E8926A; --up2:#D8455B; --up3:#D89A9A;
   --dn1:#6E9BE0; --dn2:#2F55C9; --dn3:#93AAD9;
   --ma:#C9721E; --bar-neutral:#BFC9D2;
+  --ma-us:#2B52D8; --ma-us-bg:rgba(52,97,253,.15);
+  --ma-kr:#C6304A; --ma-kr-bg:rgba(224,67,90,.15);
   --paper:rgba(27,36,48,0.05);
 }
 
@@ -124,7 +129,16 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 }
 .pill:hover{border-color:var(--ink-soft);color:var(--ink);}
 .pill.active{background:var(--a);border-color:var(--a);color:#fff;}
-.pill.ma.active{background:var(--ma);border-color:var(--ma);color:#fff;}
+/* 이동평균은 8개 중 1개만 활성 — 어느 관례를 골랐는지 색으로 구분 */
+.pill.ma[data-set="us"].active{background:var(--ma-us-bg);border-color:var(--ma-us);color:var(--ma-us);}
+.pill.ma[data-set="kr"].active{background:var(--ma-kr-bg);border-color:var(--ma-kr);color:var(--ma-kr);}
+/* 공통 라벨 하나 + 국기로 구분되는 미국식/한국식 2행 */
+.ma-block{display:flex;align-items:center;gap:10px;margin-top:9px;}
+.ma-title{flex:0 0 auto;}
+.ma-sets{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.ma-block .opt-row{margin-top:0;}
+.opt-note{text-transform:none;letter-spacing:0;}
+.flag{font-size:13px;line-height:1;letter-spacing:0;}
 
 #statusMsg{margin-top:12px;font-size:12.5px;font-family:'IBM Plex Mono',monospace;
   min-height:18px;line-height:1.5;color:var(--mute);white-space:pre-line;}
@@ -254,6 +268,8 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   /* 선택 항목을 촘촘하게 — 세로 스크롤 절감 */
   .opt-row{gap:5px;margin-top:9px;}
   .opt-label{font-size:10px;}
+  .opt-note{display:none;}          /* 좁은 화면에선 부연설명 생략 (title 로 유지) */
+  .ma-block{gap:7px;}
   .pill{font-size:11.5px;padding:5px 10px;min-height:28px;border-radius:14px;}
 
   /* 요약: 3개씩 2줄 (현재가·변동성 / 편차) */
@@ -371,11 +387,28 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       <button type="button" class="pill" data-months="60" title="5년"   aria-label="5년">5Y</button>
     </div>
 
-    <div class="opt-row" id="maRow">
-      <span class="opt-label">이동평균 <span style="text-transform:none;letter-spacing:0">(편차분석 전용)</span></span>
-      <button type="button" class="pill ma" data-w="20">20일</button>
-      <button type="button" class="pill ma" data-w="50">50일</button>
-      <button type="button" class="pill ma" data-w="100">100일</button>
+    <!--
+      이동평균은 미국식(20/50/200/400)과 한국식(20/60/120/240) 두 관례를 나란히 제공한다.
+      계산은 하나의 값으로만 하므로 8개 중 1개만 선택된다. 선택된 쪽이 어느 관례인지는 배경색으로 구분.
+    -->
+    <div class="ma-block" title="이동평균 기간 — 편차분석에만 적용됩니다">
+      <span class="opt-label ma-title">이동평균 <span class="opt-note">(편차분석 전용)</span></span>
+      <div class="ma-sets">
+        <div class="opt-row" id="maRowUS">
+          <span class="flag" role="img" aria-label="미국식" title="미국식">🇺🇸</span>
+          <button type="button" class="pill ma" data-set="us" data-w="20"  title="미국식 20일 — 1개월">20일</button>
+          <button type="button" class="pill ma" data-set="us" data-w="50"  title="미국식 50일 — 중기 · 골든크로스 기준선">50일</button>
+          <button type="button" class="pill ma" data-set="us" data-w="200" title="미국식 200일 — 장기 추세 기준선">200일</button>
+          <button type="button" class="pill ma" data-set="us" data-w="400" title="미국식 400일 — 초장기">400일</button>
+        </div>
+        <div class="opt-row" id="maRowKR">
+          <span class="flag" role="img" aria-label="한국식" title="한국식">🇰🇷</span>
+          <button type="button" class="pill ma" data-set="kr" data-w="20"  title="한국식 20일 — 1개월 · 생명선">20일</button>
+          <button type="button" class="pill ma" data-set="kr" data-w="60"  title="한국식 60일 — 분기 · 수급선">60일</button>
+          <button type="button" class="pill ma" data-set="kr" data-w="120" title="한국식 120일 — 반기선">120일</button>
+          <button type="button" class="pill ma" data-set="kr" data-w="240" title="한국식 240일 — 1년 · 경기선">240일</button>
+        </div>
+      </div>
     </div>
 
     <div id="statusMsg"></div>
@@ -481,6 +514,7 @@ var charts = {};
 
 var state = {
   W: 20,            // 이동평균 기간
+  maSet: "us",      // 이동평균 관례 (us | kr) — 계산엔 영향 없고 선택 표시용
   months: 12,       // 활성 프리셋 (직접 수정 시 null)
   devTarget: "A",   // 편차분석 대상
   A: null, B: null  // {symbol,label,name,currency,vol,dev}
@@ -571,16 +605,22 @@ function markPreset(months){
     b.classList.toggle("active", months !== null && parseInt(b.dataset.months,10) === months);
   });
 }
-function markMA(w){
-  document.querySelectorAll("#maRow .pill").forEach(function(b){
-    b.classList.toggle("active", parseInt(b.dataset.w,10) === w);
+// 미국식·한국식 8개 중 1개만 활성. 20일은 양쪽에 있으므로 값(w)과 관례(set)를 함께 비교한다.
+function markMA(w, set){
+  document.querySelectorAll(".pill.ma").forEach(function(b){
+    b.classList.toggle("active", parseInt(b.dataset.w,10) === w && b.dataset.set === set);
   });
 }
 document.querySelectorAll("#presetRow .pill").forEach(function(b){
-  b.addEventListener("click", function(){ applyPreset(parseInt(b.dataset.months,10)); });
+  b.addEventListener("click", function(){ applyPreset(parseInt(b.dataset.months,10)); saveSettings(); });
 });
-document.querySelectorAll("#maRow .pill").forEach(function(b){
-  b.addEventListener("click", function(){ state.W = parseInt(b.dataset.w,10); markMA(state.W); });
+document.querySelectorAll(".pill.ma").forEach(function(b){
+  b.addEventListener("click", function(){
+    state.W = parseInt(b.dataset.w, 10);
+    state.maSet = b.dataset.set;
+    markMA(state.W, state.maSet);
+    saveSettings();
+  });
 });
 ["startDate","endDate"].forEach(function(id){
   $(id).addEventListener("input", function(){ state.months = null; markPreset(null); });
@@ -647,7 +687,7 @@ function saveSettings(){
       a: $("tickerA").value, b: $("tickerB").value,
       sfxA: sfxState.A, sfxB: sfxState.B,
       start: $("startDate").value, end: $("endDate").value,
-      months: state.months, W: state.W, devTarget: state.devTarget
+      months: state.months, W: state.W, maSet: state.maSet, devTarget: state.devTarget
     }));
   } catch(e) {}
 }
@@ -663,6 +703,7 @@ function loadSettings(){
   sfxState.A = (s && s.sfxA) || ".KS";
   sfxState.B = (s && s.sfxB) || ".KS";
   state.W = (s && s.W) || 20;
+  state.maSet = (s && s.maSet === "kr") ? "kr" : "us";
   state.devTarget = (s && s.devTarget === "B") ? "B" : "A";
 
   // 기간: 프리셋이 저장돼 있으면 오늘 기준으로 다시 계산(항상 최신 구간), 아니면 저장된 날짜 그대로
@@ -674,7 +715,7 @@ function loadSettings(){
   } else {
     applyPreset(12);
   }
-  markMA(state.W);
+  markMA(state.W, state.maSet);
   syncSuffixBadge("A"); syncSuffixBadge("B");
 }
 
@@ -1178,8 +1219,10 @@ async function analyze(){
   var W = state.W;
   var startYmd = startVal.replace(/-/g, "");
 
-  // ★ 워밍업 패딩 — MA 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 요청
-  var padDays = Math.ceil(W * 1.5) + 7;
+  // ★ 워밍업 패딩 — MA 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 요청.
+  // 거래일은 달력일의 약 67%(한국 기준 연 246일)이므로 최소 배수는 1.49. 연휴가 몰린 구간까지
+  // 견디도록 1.65를 쓴다. MA400 기준 약 51거래일의 여유가 남는다.
+  var padDays = Math.ceil(W * 1.65) + 10;
   var padStart = new Date(startVal + "T00:00:00");
   padStart.setDate(padStart.getDate() - padDays);
   var p1 = toUnixSeconds(toInputDate(padStart), false);
