@@ -85,7 +85,8 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,314px) auto;
   gap:12px 14px;align-items:end;
 }
-/* 시작일·종료일: 140px 아래로 좁아지면 auto-fit 이 한 열로 떨어뜨린다 (360px 부터 2열) */
+/* 시작일·종료일. 데스크톱에서는 이 묶음이 314px 컬럼 안에 들어가므로 최소폭을 140px 로 둔다
+   (160px 이면 2열이 314px 를 넘어 항상 1열로 무너진다). 모바일 최소폭은 아래 미디어쿼리 참고. */
 .date-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
   gap:12px 10px;align-items:end;min-width:0;}
 /* min-height 로 바닥을 깔아 iOS 에서 다른 입력창보다 납작해지는 것을 막는다 */
@@ -312,7 +313,13 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   body[data-tab="vol"] #secDev{display:none;}
   body[data-tab="dev"] #secVol{display:none;}
 
-  .date-pair input{font-size:13px;}   /* 2열로 좁아진 폭에서 iOS 표기(2026. 8. 10.)까지 여유 확보 */
+  /* iOS Safari 는 포커스된 입력창의 글자가 16px 미만이면 페이지를 자동 확대한다.
+     16px 이상이면 확대하지 않으므로 모바일 입력창을 16px 로 맞춘다.
+     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다) */
+  .field input{font-size:16px;}
+  /* 16px 글자로는 iOS 표기("2026. 8. 10.")에 약 116px 이 필요하다. 그만한 폭이 안 나오는
+     좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
+  .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
 
   /* 전환 버튼을 한 줄 전체로 — 터치 목표를 최대한 크게 */
   #devTargetGrp{flex:1 1 100%;}
