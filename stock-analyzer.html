@@ -825,10 +825,13 @@ function closeCombo(k){
 }
 function chooseCombo(k, sym){
   var inp = $("ticker" + k);
+  // 이미 포커스가 있던 경우에만 유지한다. 없던 포커스를 새로 주면 focus 핸들러가 목록을 다시 열고,
+  // 모바일에서는 키보드까지 다시 올라온다.
+  var keepFocus = (document.activeElement === inp);
   inp.value = sym;
   syncSuffixBadge(k);
   closeCombo(k);
-  inp.focus();
+  if (keepFocus) inp.focus();
   saveSettings();
 }
 
@@ -867,9 +870,13 @@ function chooseCombo(k, sym){
     if (e.key === "Escape") closeCombo(k);
   });
 
-  // 항목 선택 — pointerdown 으로 처리해야 blur 보다 먼저 잡히고, 기본동작을 막아 포커스가 유지된다.
-  // 목록 배경(스크롤 영역)에서는 막지 않아 터치 스크롤이 그대로 동작한다.
+  // 마우스일 때만 기본동작을 막아 입력창 포커스를 유지한다.
+  // 터치에서 막으면 손가락을 대는 순간 스크롤 제스처가 죽어 목록을 굴릴 수 없다.
   $("list" + k).addEventListener("pointerdown", function(e){
+    if (e.pointerType === "mouse") e.preventDefault();
+  });
+  // 선택은 click 에서. 터치는 손가락을 뗄 때만 click 이 나므로 스크롤과 구분된다.
+  $("list" + k).addEventListener("click", function(e){
     var li = e.target.closest ? e.target.closest(".combo-item") : null;
     if (!li) return;
     e.preventDefault();
