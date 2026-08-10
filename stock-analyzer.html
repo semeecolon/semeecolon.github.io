@@ -82,9 +82,13 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .controls{margin-bottom:16px;}
 .ctrl-grid{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,150px) minmax(0,150px) auto;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,314px) auto;
   gap:12px 14px;align-items:end;
 }
+/* 시작일·종료일: 140px 아래로 좁아지면 auto-fit 이 한 열로 떨어뜨린다 (360px 부터 2열) */
+.date-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:12px 10px;align-items:end;min-width:0;}
+.date-pair input[type=date]{text-align:left;}   /* iOS 에서 값이 가운데로 몰리는 것 방지 */
 .field label{
   display:block;font-size:11px;font-weight:600;color:var(--mute);
   text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;
@@ -206,19 +210,20 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 }
 .sec-head .sec-note{font-size:11.5px;color:var(--mute);font-weight:400;}
 
-/* 종목 탭 (편차 섹션 내부) */
-#devTargetGrp{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--border);
-  border-radius:999px;padding:3px;}
-#devTargetGrp button{
+/* 종목 전환 (편차 섹션 내부) — 두 종목을 담은 영역 전체가 하나의 전환 버튼.
+   어디를 눌러도 반대쪽 종목으로 바뀌므로 작은 버튼을 겨냥할 필요가 없다. */
+#devTargetGrp{display:none;}
+.dev-toggle{display:flex;align-items:center;gap:2px;cursor:pointer;font-family:inherit;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:3px;}
+.dev-toggle:hover{border-color:var(--ink-soft);}
+.dev-toggle .seg{display:flex;align-items:center;justify-content:center;gap:6px;
   font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
-  background:none;border:none;color:var(--mute);border-radius:999px;
-  padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:6px;min-height:30px;
-}
-#devTargetGrp button .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto;}
-#devTargetGrp button[data-k="A"]{--tcol:var(--a);}
-#devTargetGrp button[data-k="B"]{--tcol:var(--b);}
-#devTargetGrp button .dot{background:var(--tcol);}
-#devTargetGrp button.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+  color:var(--mute);border-radius:999px;padding:6px 12px;min-height:30px;white-space:nowrap;}
+.dev-toggle .seg[data-k="A"]{--tcol:var(--a);}
+.dev-toggle .seg[data-k="B"]{--tcol:var(--b);}
+.dev-toggle .seg .dot{width:7px;height:7px;border-radius:50%;background:var(--tcol);flex:0 0 auto;}
+.dev-toggle .seg.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+.dev-toggle .swap-ic{flex:0 0 auto;color:var(--mute);font-size:12px;padding:0 2px;}
 
 /* ── 변동성 섹션 ──────────────────────────────────────── */
 .vol-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -274,8 +279,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
    ═══════════════════════════════════════════════════════════ */
 @media (max-width:1020px){
   .ctrl-grid{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);}
-  .ctrl-grid .f-start{grid-column:1;}
-  .ctrl-grid .f-end{grid-column:2 / span 2;}
+  .ctrl-grid .f-dates{grid-column:1 / -1;}
   .ctrl-grid .f-run{grid-column:1 / -1;}
   #runBtn{width:100%;}
   .strip{grid-template-columns:repeat(3,1fr);}
@@ -290,6 +294,13 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   #tabBar{display:flex;}
   body[data-tab="vol"] #secDev{display:none;}
   body[data-tab="dev"] #secVol{display:none;}
+
+  .date-pair input{font-size:13px;}   /* 2열로 좁아진 폭에서 iOS 표기(2026. 8. 10.)까지 여유 확보 */
+
+  /* 전환 버튼을 한 줄 전체로 — 터치 목표를 최대한 크게 */
+  #devTargetGrp{flex:1 1 100%;}
+  .dev-toggle{width:100%;}
+  .dev-toggle .seg{flex:1 1 0;min-width:0;}
 
   .vol-grid{grid-template-columns:1fr;}   /* 변동성: A·B 세로 스택 (둘 다 표시) */
   .chart-box{height:240px;}
@@ -315,8 +326,6 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   .ctrl-grid .f-a{grid-column:1;}
   .ctrl-grid .f-swap{grid-column:2;}
   .ctrl-grid .f-b{grid-column:1 / -1;}
-  .ctrl-grid .f-start{grid-column:1 / -1;}
-  .ctrl-grid .f-end{grid-column:1 / -1;}
   .sval{font-size:12px;}
   .pill{padding:5px 8px;}
 }
@@ -363,13 +372,16 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
           <ul class="combo-list" id="listB" role="listbox" aria-label="종목 프리셋"></ul>
         </div>
       </div>
-      <div class="field f-start">
-        <label for="startDate">시작일</label>
-        <input type="date" id="startDate">
-      </div>
-      <div class="field f-end">
-        <label for="endDate">종료일</label>
-        <input type="date" id="endDate">
+      <!-- 두 날짜는 한 묶음. 폭이 모자라면 auto-fit 이 알아서 세로로 떨어뜨린다. -->
+      <div class="date-pair f-dates">
+        <div class="field">
+          <label for="startDate">시작일</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="field">
+          <label for="endDate">종료일</label>
+          <input type="date" id="endDate">
+        </div>
       </div>
       <div class="field f-run">
         <label>&nbsp;</label>
@@ -1149,20 +1161,28 @@ function renderDevTargetTabs(){
   var grp = $("devTargetGrp");
   if (!state.B || !state.B.dev){ grp.innerHTML = ""; grp.style.display = "none"; return; }
   grp.style.display = "flex";
-  grp.innerHTML = ["A","B"].map(function(k){
-    var d = state[k];
-    return '<button type="button" data-k="' + k + '"' +
-           (state.devTarget === k ? ' class="active"' : '') + '>' +
-           '<span class="dot"></span>' + esc(d.symbol) + '</button>';
-  }).join("");
-  grp.querySelectorAll("button").forEach(function(b){
-    b.addEventListener("click", function(){
-      state.devTarget = b.dataset.k;
-      saveSettings();
-      renderDevTargetTabs();
-      renderDeviation();
-      renderSummary();
-    });
+
+  var other = (state.devTarget === "A") ? "B" : "A";
+  var otherSym = esc(state[other].symbol);
+  // 두 종목을 감싼 영역 전체가 버튼 하나 — 어디를 눌러도 반대쪽으로 전환된다.
+  // 가운데 ⇄ 로 '탭 두 개'가 아니라 '전환 스위치'임을 드러낸다.
+  grp.innerHTML =
+    '<button type="button" class="dev-toggle" title="클릭하면 ' + otherSym + ' 로 전환"' +
+      ' aria-label="편차분석 대상 ' + esc(state[state.devTarget].symbol) +
+      ', 누르면 ' + otherSym + ' 로 전환">' +
+      '<span class="seg' + (state.devTarget === "A" ? " on" : "") + '" data-k="A">' +
+        '<span class="dot"></span>' + esc(state.A.symbol) + '</span>' +
+      '<span class="swap-ic" aria-hidden="true">⇄</span>' +
+      '<span class="seg' + (state.devTarget === "B" ? " on" : "") + '" data-k="B">' +
+        '<span class="dot"></span>' + esc(state.B.symbol) + '</span>' +
+    '</button>';
+
+  grp.querySelector(".dev-toggle").addEventListener("click", function(){
+    state.devTarget = (state.devTarget === "A") ? "B" : "A";
+    saveSettings();
+    renderDevTargetTabs();
+    renderDeviation();
+    renderSummary();
   });
 }
 
