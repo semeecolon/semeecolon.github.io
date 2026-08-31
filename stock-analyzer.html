@@ -574,7 +574,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
     <div><b>편차</b> — 이동평균(W일)과 모표준편차로 Z = (종가 − MA) / σ. 볼린저밴드는 MA ± 1·2·3σ.</div>
     <div><b>워밍업 보정</b> — 이동평균 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 받아온 뒤 화면에는 요청 구간만 표시하므로, MA100을 선택해도 그래프 앞부분이 잘리지 않습니다.</div>
     <div><b>데이터 출처</b> — Yahoo Finance 차트 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
-    <div><b>참고</b> — Yahoo 를 <b>직접 호출</b>해 보고(허용되면 가장 빠릅니다), 막히면 공개 프록시(corsproxy.io · allorigins.win · codetabs · thingproxy)를 거칩니다.
+    <div><b>참고</b> — Yahoo를 <b>직접 호출</b>해 보고(허용되면 가장 빠릅니다), 막히면 공개 프록시(corsproxy.io · allorigins.win · codetabs · thingproxy)를 거칩니다.
       순서대로 기다리지 않고 <b>0.7초 간격으로 동시에 던져 가장 먼저 답한 곳</b>을 쓰며, 성공한 곳을 기억해 다음 조회에서 먼저 시도합니다.
       한 곳이 죽어 있어도 대기 시간이 늘지 않습니다. 모두 실패하면 상태줄에 <b>어느 프록시가 왜 실패했는지</b> 표시되니,
       잠시 후 재시도하거나 종목코드를 확인하세요. <code>file://</code> 로 직접 열면 더 엄격히 막히므로
