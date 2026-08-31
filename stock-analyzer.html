@@ -574,7 +574,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
     <div><b>편차</b> — 이동평균(W일)과 모표준편차로 Z = (종가 − MA) / σ. 볼린저밴드는 MA ± 1·2·3σ.</div>
     <div><b>워밍업 보정</b> — 이동평균 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 받아온 뒤 화면에는 요청 구간만 표시하므로, MA100을 선택해도 그래프 앞부분이 잘리지 않습니다.</div>
     <div><b>데이터 출처</b> — Yahoo Finance 차트 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
-    <div><b>참고</b> — Yahoo는 브라우저 직접 호출을 CORS로 막기 때문에 공개 프록시(corsproxy.io · allorigins.win · codetabs · thingproxy)를 거칩니다.
+    <div><b>참고</b> — Yahoo를 <b>직접 호출</b>해 보고(허용되면 가장 빠릅니다), 막히면 공개 프록시(corsproxy.io · allorigins.win · codetabs · thingproxy)를 거칩니다.
       순서대로 기다리지 않고 <b>0.7초 간격으로 동시에 던져 가장 먼저 답한 곳</b>을 쓰며, 성공한 곳을 기억해 다음 조회에서 먼저 시도합니다.
       한 곳이 죽어 있어도 대기 시간이 늘지 않습니다. 모두 실패하면 상태줄에 <b>어느 프록시가 왜 실패했는지</b> 표시되니,
       잠시 후 재시도하거나 종목코드를 확인하세요. <code>file://</code> 로 직접 열면 더 엄격히 막히므로
@@ -603,6 +603,9 @@ var state = {
 // 먼저 답한 곳을 쓴다(아래 raceProxies). corsproxy 는 현재 표기(?url=)와 예전 표기를 모두 둔다 —
 // 어느 쪽이 살아있든 먼저 답한 것이 이기므로 한쪽이 폐기돼도 영향이 없다.
 var PROXIES = [
+  // 프록시 없이 Yahoo 를 직접. Yahoo 가 Access-Control-Allow-Origin 을 내려주면 이게 가장 빠르고
+  // 제3자를 거치지 않아 가장 안정적이다. 안 내려주면 CORS 로 즉시 실패하므로 손해가 없다.
+  { name:"직접",        url:function(u){ return u; } },
   { name:"corsproxy",   url:function(u){ return "https://corsproxy.io/?url=" + encodeURIComponent(u); } },
   { name:"allorigins",  url:function(u){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); } },
   { name:"codetabs",    url:function(u){ return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); } },
@@ -1026,7 +1029,10 @@ async function tryProxy(pr, targetUrl){
     if (!data.length) throw new Error("종가 없음");
     return { data:data, meta:r.meta || {}, name:pr.name, ms:Date.now()-t0 };
   } catch(e){
-    var msg = (e && e.name === "TimeoutError") ? "시간초과" : ((e && e.message) || String(e));
+    // CORS 로 막히면 브라우저는 TypeError("Failed to fetch") 만 준다. 사유를 알아볼 수 있게 바꿔 적는다.
+    var msg = (e && e.name === "TimeoutError") ? "시간초과"
+            : (e instanceof TypeError) ? "CORS 차단/연결 실패"
+            : ((e && e.message) || String(e));
     throw { name:pr.name, ms:Date.now()-t0, msg:msg };
   }
 }
