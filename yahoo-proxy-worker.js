@@ -59,7 +59,8 @@ export default {
         cf: { cacheTtl: 60, cacheEverything: true },   // 같은 요청은 60초간 엣지 캐시
       });
     } catch (e) {
-      return new Response("upstream 실패: " + e, { status: 502, headers: CORS });
+      console.error("upstream fetch failed", e);
+      return new Response("upstream 실패", { status: 502, headers: CORS });
     }
 
     const headers = new Headers(CORS);
