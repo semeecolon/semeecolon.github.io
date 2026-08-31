@@ -574,9 +574,11 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
     <div><b>편차</b> — 이동평균(W일)과 모표준편차로 Z = (종가 − MA) / σ. 볼린저밴드는 MA ± 1·2·3σ.</div>
     <div><b>워밍업 보정</b> — 이동평균 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 받아온 뒤 화면에는 요청 구간만 표시하므로, MA100을 선택해도 그래프 앞부분이 잘리지 않습니다.</div>
     <div><b>데이터 출처</b> — Yahoo Finance 차트 API. 종가 기준이며 실시간 데이터가 아닙니다.</div>
-    <div><b>참고</b> — Yahoo는 브라우저 직접 호출을 CORS로 막기 때문에 공개 프록시 4곳(corsproxy.io → allorigins.win → thingproxy → codetabs)을
-      <code>query1</code>·<code>query2</code> 두 서버에 순서대로 시도합니다(최대 8회). 모두 실패하면 잠시 후 재시도하거나,
-      <code>file://</code> 대신 <code>python -m http.server</code> 로 띄운 <code>http://localhost:...</code> 주소로 접속해보세요.</div>
+    <div><b>참고</b> — Yahoo는 브라우저 직접 호출을 CORS로 막기 때문에 공개 프록시(corsproxy.io · allorigins.win · codetabs · thingproxy)를 거칩니다.
+      순서대로 기다리지 않고 <b>0.7초 간격으로 동시에 던져 가장 먼저 답한 곳</b>을 쓰며, 성공한 곳을 기억해 다음 조회에서 먼저 시도합니다.
+      한 곳이 죽어 있어도 대기 시간이 늘지 않습니다. 모두 실패하면 상태줄에 <b>어느 프록시가 왜 실패했는지</b> 표시되니,
+      잠시 후 재시도하거나 종목코드를 확인하세요. <code>file://</code> 로 직접 열면 더 엄격히 막히므로
+      <code>python -m http.server</code> 로 띄운 <code>http://localhost:...</code> 주소를 쓰시면 됩니다.</div>
   </footer>
 
 </div>
@@ -597,12 +599,28 @@ var state = {
   A: null, B: null  // {symbol,label,name,currency,vol,dev}
 };
 
+// 공개 프록시는 수시로 느려지거나 죽는다. 순서대로 기다리지 않고 시차를 두고 동시에 던져
+// 먼저 답한 곳을 쓴다(아래 raceProxies). corsproxy 는 현재 표기(?url=)와 예전 표기를 모두 둔다 —
+// 어느 쪽이 살아있든 먼저 답한 것이 이기므로 한쪽이 폐기돼도 영향이 없다.
 var PROXIES = [
-  function(u){ return "https://corsproxy.io/?" + encodeURIComponent(u); },
-  function(u){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
-  function(u){ return "https://thingproxy.freeboard.io/fetch/" + u; },
-  function(u){ return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); }
+  { name:"corsproxy",   url:function(u){ return "https://corsproxy.io/?url=" + encodeURIComponent(u); } },
+  { name:"allorigins",  url:function(u){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); } },
+  { name:"codetabs",    url:function(u){ return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); } },
+  { name:"corsproxy2",  url:function(u){ return "https://corsproxy.io/?" + encodeURIComponent(u); } },
+  { name:"thingproxy",  url:function(u){ return "https://thingproxy.freeboard.io/fetch/" + u; } }
 ];
+var PROXY_TIMEOUT = 8000;   // 한 곳당 최대 대기
+var PROXY_STAGGER = 700;    // 다음 곳을 띄우기까지 간격 (빠르면 나머지는 아예 안 뜬다)
+var LS_PROXY = "stockAnalyzer.proxy";
+
+function proxyOrder(){
+  var last = null;
+  try { last = localStorage.getItem(LS_PROXY); } catch(e) {}
+  if (!last) return PROXIES.slice();
+  // 지난번에 성공한 곳을 맨 앞으로 — 대개 첫 시도에서 바로 끝난다
+  return PROXIES.filter(function(p){ return p.name === last; })
+    .concat(PROXIES.filter(function(p){ return p.name !== last; }));
+}
 var YAHOO_BASES = ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"];
 
 var GUIDES = [
@@ -990,35 +1008,79 @@ function yahooToSeries(result){
   out.sort(function(x,y){ return x.ymd.localeCompare(y.ymd); });
   return out;
 }
+// 프록시 한 곳 시도. 성공하면 결과와 걸린 시간, 실패하면 사유를 남긴다(어디가 왜 막혔는지 보이게).
+async function tryProxy(pr, targetUrl){
+  var t0 = Date.now();
+  try {
+    var res = await fetch(pr.url(targetUrl), { signal: AbortSignal.timeout(PROXY_TIMEOUT) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    var text = await res.text();
+    if (!text || text.trim().charAt(0) === "<") throw new Error("HTML 응답");
+    var json = JSON.parse(text);
+    var r = json && json.chart && json.chart.result && json.chart.result[0];
+    if (!(r && Array.isArray(r.timestamp) && r.timestamp.length)){
+      var em = json && json.chart && json.chart.error && json.chart.error.description;
+      throw new Error(em || "데이터 없음");
+    }
+    var data = yahooToSeries(r);
+    if (!data.length) throw new Error("종가 없음");
+    return { data:data, meta:r.meta || {}, name:pr.name, ms:Date.now()-t0 };
+  } catch(e){
+    var msg = (e && e.name === "TimeoutError") ? "시간초과" : ((e && e.message) || String(e));
+    throw { name:pr.name, ms:Date.now()-t0, msg:msg };
+  }
+}
+
+// 시차를 두고 동시에 던지고 가장 먼저 성공한 것을 쓴다.
+// 앞의 것이 빨리 답하면 뒤의 것은 아예 뜨지 않아 공개 프록시에 부담을 주지 않고,
+// 앞의 것이 죽어 있으면 기다리지 않고 곧바로 다음 것으로 넘어간다.
+function raceProxies(targetUrl, order){
+  return new Promise(function(resolve, reject){
+    var errs = [], done = false, finished = 0;
+    var launched = new Array(order.length);
+    var timers = [];
+    function cleanup(){ timers.forEach(function(t){ clearTimeout(t); }); }
+    function launch(i){
+      if (done || i < 0 || i >= order.length || launched[i]) return;
+      launched[i] = true;
+      tryProxy(order[i], targetUrl).then(function(ok){
+        if (done) return;
+        done = true; cleanup(); resolve(ok);
+      }, function(err){
+        errs.push(err);
+        finished++;
+        if (done) return;
+        if (finished >= order.length){ cleanup(); reject(errs); return; }
+        for (var j = 0; j < order.length; j++){ if (!launched[j]){ launch(j); break; } }  // 실패하면 다음 것을 앞당김
+      });
+    }
+    launch(0);
+    for (var i = 1; i < order.length; i++){
+      (function(idx){ timers.push(setTimeout(function(){ launch(idx); }, PROXY_STAGGER * idx)); })(i);
+    }
+  });
+}
+
 async function fetchSeries(symbol, p1, p2){
+  var order = proxyOrder();
+  var report = [];
   for (var b = 0; b < YAHOO_BASES.length; b++){
+    var base = (b === 0) ? "query1" : "query2";
     var url = YAHOO_BASES[b] + "/v8/finance/chart/" + encodeURIComponent(symbol)
             + "?period1=" + p1 + "&period2=" + p2 + "&interval=1d";
-    for (var i = 0; i < PROXIES.length; i++){
-      try {
-        var res = await fetch(PROXIES[i](url), { signal: AbortSignal.timeout(9000) });
-        if (!res.ok) continue;
-        var text = await res.text();
-        if (!text || text.trim().charAt(0) === "<") continue;   // 프록시 에러 페이지
-        var json = JSON.parse(text);
-        var r = json && json.chart && json.chart.result && json.chart.result[0];
-        if (r && Array.isArray(r.timestamp) && r.timestamp.length){
-          var data = yahooToSeries(r);
-          if (data.length){
-            return {
-              data: data,
-              meta: r.meta || {},
-              via: (b === 0 ? "query1" : "query2") + " · 프록시 " + (i+1) + "/" + PROXIES.length
-            };
-          }
-        }
-      } catch(e) { continue; }
+    try {
+      var ok = await raceProxies(url, order);
+      try { localStorage.setItem(LS_PROXY, ok.name); } catch(e) {}   // 다음 조회에서 먼저 시도
+      return { data: ok.data, meta: ok.meta, via: base + " · " + ok.name + " " + ok.ms + "ms" };
+    } catch(errs){
+      report.push(base + " — " + errs.map(function(e){ return e.name + ": " + e.msg; }).join(" / "));
     }
   }
   var isFile = location.protocol === "file:";
-  throw new Error(isFile
-    ? "데이터를 가져오지 못했습니다 (" + symbol + "). file:// 로 직접 열면 브라우저가 요청을 더 엄격히 막습니다.\n로컬 서버로 실행해보세요: python -m http.server 8080 → http://localhost:8080/"
-    : "데이터를 가져오지 못했습니다 (" + symbol + ") — query1/query2 × 프록시 " + PROXIES.length + "곳 모두 실패. 잠시 후 재시도하거나 종목코드를 확인하세요.");
+  throw new Error("데이터를 가져오지 못했습니다 (" + symbol + ")\n" + report.join("\n")
+    + (isFile
+      ? "\nfile:// 로 직접 열면 브라우저가 요청을 더 엄격히 막습니다. python -m http.server 8080 으로 띄워보세요."
+      : "\n공개 프록시가 모두 응답하지 않는 상태입니다. 잠시 후 다시 시도하거나 종목코드를 확인하세요."));
 }
 
 /* ═══════════════════════════════════════════════════════════
