@@ -237,11 +237,15 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 }
 .sec-head .sec-note{font-size:11.5px;color:var(--mute);font-weight:400;}
 
-/* 편차분석 대상 전환 — 화면 우측 중앙에 항상 떠 있는 세로형 알약 버튼.
-   어디를 눌러도(위쪽 종목이든 아래쪽이든 가운데 화살표든) 반대쪽으로 바뀌므로
-   작은 버튼을 겨냥할 필요가 없다. .wrap 밖에 있어 스크롤·탭 전환과 무관하게 고정된다. */
+/* 편차분석 대상 전환 — 항상 떠 있는 세로형 알약 버튼. 어디를 눌러도(위쪽 종목이든
+   아래쪽이든 가운데 화살표든) 반대쪽으로 바뀌므로 작은 버튼을 겨냥할 필요가 없다.
+   .wrap 밖에 있어 스크롤·탭 전환과 무관하게 고정된다(position:fixed).
+   데스크톱은 top 값을 JS(positionFloatToggle)가 계산해 검색 패널 하단선에 맞춘다 —
+   분석 버튼을 누른 직후 시선이 이미 그 근처에 있어 동선이 짧다. translateY(-100%) 로
+   "이 top 값 = 알약의 아랫변" 이 되게 해, 알약 높이가 콘텐츠에 따라 달라져도 항상
+   패널 하단선에 나란히 붙는다. 모바일은 화면 하단 쪽으로 고정(아래 미디어쿼리). */
 .dev-float{
-  position:fixed; top:50%; right:14px; transform:translateY(-50%); z-index:40;
+  position:fixed; right:14px; z-index:40; transform:translateY(-100%);
   display:flex; flex-direction:column; align-items:stretch; gap:2px; width:56px;
   cursor:pointer; font-family:inherit; padding:5px;
   background:var(--panel); border:1px solid var(--border); border-radius:24px;
@@ -341,8 +345,13 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
 
-  /* 좁은 화면에서는 알약을 작게 줄이고, 화면 가장자리에 붙지 않도록 안쪽으로 들여놓는다 */
-  .dev-float{width:46px;right:8px;padding:4px;border-radius:20px;}
+  /* 모바일은 검색 패널 기준 정렬 대신 화면 하단 쪽에 고정(엄지로 닿기 쉬운 위치).
+     top 은 JS 가 건드리지 않도록 비워두고(positionFloatToggle), bottom 으로만 앉힌다.
+     가로 위치도 가장자리에서 더 안쪽으로 들여, 화면 밖으로 삐져나오지 않게 한다. */
+  .dev-float{
+    top:auto !important; bottom:22px; right:18px; transform:none;
+    width:46px; padding:4px; border-radius:20px;
+  }
   .dev-float .seg{font-size:9.5px;padding:6px 2px;gap:2px;}
   .dev-float .swap-ic{font-size:10px;}
 
@@ -1344,6 +1353,25 @@ function renderDevTargetTabs(){
   grp.querySelector('[data-k="B"] .tk').textContent = state.B.symbol;
   grp.querySelector('[data-k="B"] .tk').title = state.B.label;
   paintDevToggle();
+  positionFloatToggle();
+}
+
+// 데스크톱: 검색 패널(.controls) 하단선에 맞춰 알약 위치를 계산한다.
+// position:fixed 이므로 top 은 "뷰포트 위에서부터의 거리"인데, 패널의 document 상
+// 절대 위치(뷰포트 기준 위치 + 현재 스크롤량)를 구하면 스크롤이 얼마든 간에 항상
+// 같은 값이 나온다 — 그 값을 그대로 top 에 쓰면 "스크롤을 맨 위로 올렸을 때 패널
+// 바로 옆"이 되는 지점에 고정되고, 이후 스크롤해도 그 화면 위치에 계속 떠 있는다.
+// 모바일은 CSS 의 bottom 고정을 그대로 쓰므로 top 인라인 값을 지운다.
+function positionFloatToggle(){
+  var el = $("devTargetGrp");
+  if (el.style.display === "none") return;
+  if (isMobile()){ el.style.top = ""; return; }
+  var panel = document.querySelector(".controls");
+  if (!panel) return;
+  var docBottom = Math.round(panel.getBoundingClientRect().bottom + window.scrollY);
+  // 헤더 위로 넘어가거나 화면 아래로 벗어나지 않게 여유를 둔다
+  var top = Math.max(140, Math.min(docBottom, window.innerHeight - 100));
+  el.style.top = top + "px";
 }
 
 // 선택 표시와 설명만 갱신 (구조는 건드리지 않음)
@@ -1564,7 +1592,10 @@ window.matchMedia("(max-width: 899px)").addEventListener("change", function(){
 });
 // 회전처럼 브레이크포인트를 넘지 않는 크기 변화에서도 캔버스를 즉시 다시 맞춘다
 var vpTimer = null;
-function onViewportChange(){ clearTimeout(vpTimer); vpTimer = setTimeout(resizeCharts, 150); }
+function onViewportChange(){
+  clearTimeout(vpTimer);
+  vpTimer = setTimeout(function(){ resizeCharts(); positionFloatToggle(); }, 150);
+}
 window.addEventListener("resize", onViewportChange);
 window.addEventListener("orientationchange", onViewportChange);
 
