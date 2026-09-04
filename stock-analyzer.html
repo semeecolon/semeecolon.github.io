@@ -345,9 +345,10 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
 
-  /* 모바일은 검색 패널 기준 정렬 대신 화면 하단 쪽에 고정(엄지로 닿기 쉬운 위치).
-     top 은 JS 가 건드리지 않도록 비워두고(positionFloatToggle), bottom 으로만 앉힌다.
-     우측 여백은 데스크톱의 DEV_FLOAT_GAP 과 같은 값을 쓰고, 하단 여백은 그대로 유지한다. */
+  /* 모바일은 화면 하단 쪽에 고정(엄지로 닿기 쉬운 위치) — bottom 은 이 값을 그대로 쓴다.
+     right:14px 는 JS 실행 전 잠깐 보이는 초기값일 뿐, positionFloatToggle() 이 패널의
+     실제 오른쪽 끝을 기준으로 left 를 계산해 곧바로 덮어쓴다(뷰포트 기준 right 만으로는
+     모바일 body 좌우 패딩 때문에 패널과 거의 맞닿아 보인다). */
   .dev-float{
     top:auto !important; bottom:22px; right:14px; transform:none;
     width:46px; padding:4px; border-radius:20px;
@@ -1366,19 +1367,25 @@ function renderDevTargetTabs(){
 // 절대 위치(뷰포트 기준 위치 + 현재 스크롤량)를 구하면 스크롤이 얼마든 간에 항상
 // 같은 값이 나온다 — 그 값을 그대로 top 에 쓰면 "스크롤을 맨 위로 올렸을 때 패널
 // 바로 옆"이 되는 지점에 고정되고, 이후 스크롤해도 그 화면 위치에 계속 떠 있는다.
-// 모바일은 CSS 의 bottom 고정을 그대로 쓰므로 top 인라인 값을 지운다.
+// 모바일은 화면 하단에 고정하되(top/bottom 은 CSS 그대로), 우측 위치는 데스크톱과
+// 마찬가지로 패널의 실제 오른쪽 끝을 기준으로 계산한다 — 모바일은 body 좌우 패딩(12px)
+// 때문에 뷰포트 기준 right 값만으로는 패널과의 실제 간격이 얕아져(거의 맞닿음) 버린다.
 var DEV_FLOAT_GAP = 14; // 박스와의 간격 — 밖에 붙을 때·안쪽에 앉을 때·모바일 우측 여백 모두 동일하게 사용
 function positionFloatToggle(){
   var el = $("devTargetGrp");
   if (el.style.display === "none") return;
-  if (isMobile()){
-    // 모바일은 CSS 의 bottom/right 고정(하단 앵커)을 그대로 쓴다 — 데스크톱 값이 남아있으면 지운다.
-    el.style.top = ""; el.style.left = ""; el.style.right = ""; el.style.transform = "";
-    return;
-  }
   var panel = document.querySelector(".controls");
   if (!panel) return;
   var rect = panel.getBoundingClientRect();
+  var panelRight = Math.floor(rect.right);
+  if (isMobile()){
+    // top/bottom 은 CSS 고정(하단 앵커)을 그대로 쓰고, 좌우만 패널 기준으로 계산한다.
+    el.style.top = "";
+    el.style.right = "auto";
+    el.style.left = Math.max(8, panelRight - el.offsetWidth - DEV_FLOAT_GAP) + "px";
+    el.style.transform = "none";
+    return;
+  }
   // innerWidth 는 스크롤바 폭까지 포함하므로(오버레이 스크롤바가 아닌 환경, 주로 Windows)
   // 그걸 기준으로 재면 알약이 스크롤바 아래 살짝 가려질 수 있다. clientWidth 를 쓴다.
   var viewportW = document.documentElement.clientWidth || window.innerWidth;
@@ -1386,20 +1393,21 @@ function positionFloatToggle(){
   var docBottom = Math.round(rect.bottom + window.scrollY);
   el.style.right = "auto";
 
-  var panelRight = Math.floor(rect.right);
-  // 알약 아랫변이 패널 하단선에서 GAP 만큼 위에 오도록 하는 문서좌표 — 모드 A/B 공통
-  var bottomTarget = docBottom - DEV_FLOAT_GAP;
+  // 알약 아랫변이 놓일 문서좌표 — 패널 하단선에서 GAP 만큼 위, 헤더 위/화면 아래로
+  // 벗어나지 않게 자른다. 이 클램프 기준(최소·최대)을 모드 A/B 가 그대로 공유해야
+  // 화면이 낮아 클램프가 걸리는 경우에도 모드 전환 시 세로 위치가 튀지 않는다.
+  var pillBottom = Math.max(140, Math.min(docBottom - DEV_FLOAT_GAP, window.innerHeight - 8));
   var fitsOutside = (panelRight + DEV_FLOAT_GAP + pillW + 8) <= viewportW;
   if (fitsOutside){
     // 모드 A — 패널 오른쪽 바깥에 나란히
     el.style.transform = "translateY(-100%)";
     el.style.left = (panelRight + DEV_FLOAT_GAP) + "px";
-    el.style.top = Math.max(140, Math.min(bottomTarget, window.innerHeight - 100)) + "px";
+    el.style.top = pillBottom + "px";
   } else {
     // 모드 B — 바깥에 놓을 공간이 없으면 패널 안쪽 우하단 코너에 앉힌다
     el.style.transform = "none";
     el.style.left = Math.max(8, panelRight - pillW - DEV_FLOAT_GAP) + "px";
-    el.style.top = Math.max(140, Math.min(bottomTarget - pillH, window.innerHeight - pillH - 8)) + "px";
+    el.style.top = (pillBottom - pillH) + "px";
   }
 }
 
