@@ -1365,13 +1365,27 @@ function renderDevTargetTabs(){
 function positionFloatToggle(){
   var el = $("devTargetGrp");
   if (el.style.display === "none") return;
-  if (isMobile()){ el.style.top = ""; return; }
+  if (isMobile()){
+    // 모바일은 CSS 의 bottom/right 고정(하단 앵커)을 그대로 쓴다 — 데스크톱 값이 남아있으면 지운다.
+    el.style.top = ""; el.style.left = ""; el.style.right = "";
+    return;
+  }
   var panel = document.querySelector(".controls");
   if (!panel) return;
-  var docBottom = Math.round(panel.getBoundingClientRect().bottom + window.scrollY);
+  var rect = panel.getBoundingClientRect();
+
+  var docBottom = Math.round(rect.bottom + window.scrollY);
   // 헤더 위로 넘어가거나 화면 아래로 벗어나지 않게 여유를 둔다
   var top = Math.max(140, Math.min(docBottom, window.innerHeight - 100));
   el.style.top = top + "px";
+
+  // .wrap 은 max-width 로 가운데 정렬되므로, 창을 넓혀도 화면 가장자리(right:14px)가 아니라
+  // 패널의 실제 우측 끝 옆에 붙도록 left 로 위치를 잡는다. 화면이 좁아 패널이 거의 꽉 찰 때는
+  // 화면 밖으로 나가지 않게 최대값을 둔다.
+  var left = Math.round(rect.right) + 14;
+  var maxLeft = window.innerWidth - el.offsetWidth - 8;
+  el.style.left = Math.min(left, maxLeft) + "px";
+  el.style.right = "auto";
 }
 
 // 선택 표시와 설명만 갱신 (구조는 건드리지 않음)
