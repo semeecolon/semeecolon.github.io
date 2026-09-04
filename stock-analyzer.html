@@ -194,13 +194,29 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .hint{font-size:11.5px;color:var(--mute);margin-top:10px;line-height:1.6;}
 
 /* ── 요약 스트립 ──────────────────────────────────────── */
+/* 종목 A·B 를 같은 카드 구성으로 위아래 두 행에 나열한다(열 수는 그대로, 행만 추가).
+   각 행은 카드 좌측 테두리 색으로 A=파랑/B=빨강 구분된다. */
 #summaryWrap{display:none;margin-bottom:16px;}
 #summaryHead{font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
+.srow{margin-bottom:12px;}
+.srow:last-child{margin-bottom:0;}
+.srow-label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-soft);
+  margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:'IBM Plex Mono',monospace;}
+.srow-label .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;}
+.srow-a .srow-label .dot{background:var(--a);}
+.srow-b .srow-label .dot{background:var(--b);}
+.srow-label .cur-badge{flex:0 0 auto;font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:999px;
+  background:var(--panel-2);border:1px solid var(--border);color:var(--ink-soft);letter-spacing:.02em;}
 .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
 .scard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:0;}
+.srow-a .scard{border-left:3px solid var(--a);}
+.srow-b .scard{border-left:3px solid var(--b);}
 .slbl{font-size:10.5px;color:var(--mute);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sval{font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 값은 잘라내지 않고 필요하면 다음 줄로 넘긴다 — 자릿수가 큰 원화 가격 등에서
+   ellipsis 로 숫자 일부가 안 보이게 되는 것을 막기 위함 (예: "1,646,000.00 KRW") */
+.sval{font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.25;
+  word-break:break-word;}
 
 /* ── 섹션 탭 (모바일 전용) ────────────────────────────── */
 #tabBar{display:none;position:sticky;top:0;z-index:20;gap:0;
@@ -221,23 +237,27 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 }
 .sec-head .sec-note{font-size:11.5px;color:var(--mute);font-weight:400;}
 
-/* 종목 전환 (편차 섹션 내부) — 두 종목을 담은 영역 전체가 하나의 전환 버튼.
-   어디를 눌러도 반대쪽 종목으로 바뀌므로 작은 버튼을 겨냥할 필요가 없다. */
-/* min-width:0 이 없으면 flex 항목이 내용보다 작아지지 못해 긴 티커에서 화면을 넘긴다 */
-#devTargetGrp{display:none;min-width:0;}
-.dev-toggle{display:flex;align-items:center;gap:2px;cursor:pointer;font-family:inherit;max-width:100%;
-  background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:3px;}
-.dev-toggle:hover{border-color:var(--ink-soft);}
-.dev-toggle .seg{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;overflow:hidden;
-  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
-  color:var(--mute);border-radius:999px;padding:6px 12px;min-height:30px;white-space:nowrap;}
-/* 긴 티커가 알약 밖으로 삐져나오지 않게 잘라준다 */
-.dev-toggle .seg .tk{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.dev-toggle .seg[data-k="A"]{--tcol:var(--a);}
-.dev-toggle .seg[data-k="B"]{--tcol:var(--b);}
-.dev-toggle .seg .dot{width:7px;height:7px;border-radius:50%;background:var(--tcol);flex:0 0 auto;}
-.dev-toggle .seg.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18);}
-.dev-toggle .swap-ic{flex:0 0 auto;color:var(--mute);font-size:12px;padding:0 2px;}
+/* 편차분석 대상 전환 — 화면 우측 중앙에 항상 떠 있는 세로형 알약 버튼.
+   어디를 눌러도(위쪽 종목이든 아래쪽이든 가운데 화살표든) 반대쪽으로 바뀌므로
+   작은 버튼을 겨냥할 필요가 없다. .wrap 밖에 있어 스크롤·탭 전환과 무관하게 고정된다. */
+.dev-float{
+  position:fixed; top:50%; right:14px; transform:translateY(-50%); z-index:40;
+  display:flex; flex-direction:column; align-items:stretch; gap:2px; width:56px;
+  cursor:pointer; font-family:inherit; padding:5px;
+  background:var(--panel); border:1px solid var(--border); border-radius:24px;
+  box-shadow:0 6px 18px rgba(0,0,0,.22);
+}
+.dev-float:hover{border-color:var(--ink-soft);}
+.dev-float .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-width:0; overflow:hidden; font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;
+  color:var(--mute); border-radius:18px; padding:8px 2px; text-align:center;}
+/* 긴 티커/종목명이 알약 밖으로 삐져나오지 않게 자르고, 전체 이름은 title 툴팁으로 남긴다 */
+.dev-float .seg .tk{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dev-float .seg[data-k="A"]{--tcol:var(--a);}
+.dev-float .seg[data-k="B"]{--tcol:var(--b);}
+.dev-float .seg .dot{width:6px;height:6px;border-radius:50%;background:var(--tcol);flex:0 0 auto;}
+.dev-float .seg.on{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--tcol);}
+.dev-float .swap-ic{flex:0 0 auto;color:var(--mute);font-size:12px;text-align:center;line-height:1;padding:2px 0;}
 
 /* ── 변동성 섹션 ──────────────────────────────────────── */
 .vol-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -321,10 +341,10 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
 
-  /* 전환 버튼을 한 줄 전체로 — 터치 목표를 최대한 크게 */
-  #devTargetGrp{flex:1 1 100%;}
-  .dev-toggle{width:100%;}
-  .dev-toggle .seg{flex:1 1 0;}
+  /* 좁은 화면에서는 알약을 작게 줄이고, 화면 가장자리에 붙지 않도록 안쪽으로 들여놓는다 */
+  .dev-float{width:46px;right:8px;padding:4px;border-radius:20px;}
+  .dev-float .seg{font-size:9.5px;padding:6px 2px;gap:2px;}
+  .dev-float .swap-ic{font-size:10px;}
 
   .vol-grid{grid-template-columns:1fr;}   /* 변동성: A·B 세로 스택 (둘 다 표시) */
   .chart-box{height:240px;}
@@ -498,7 +518,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   <!-- ══ 요약 스트립 ════════════════════════════════════ -->
   <div id="summaryWrap">
     <div id="summaryHead"></div>
-    <div class="strip" id="summaryStrip"></div>
+    <div id="summaryStrip"></div>
   </div>
 
   <!-- ══ 섹션 탭 (모바일 전용) ══════════════════════════ -->
@@ -525,7 +545,6 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
     <section class="sec" id="secDev">
       <div class="sec-head">
         <h2>② 편차 분석 <span class="sec-note">이동평균 기준 Z-Score &amp; 볼린저밴드</span></h2>
-        <div id="devTargetGrp"></div>
       </div>
 
       <div id="signalBox"></div>
@@ -582,6 +601,10 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   </footer>
 
 </div>
+
+<!-- 편차분석 대상 전환 — 화면 우측 중앙에 항상 떠 있는 버튼. .wrap 밖에 두어
+     스크롤 위치·현재 탭과 무관하게 고정되고, 눌러도 화면 이동 없이 편차 섹션 내용만 바뀐다. -->
+<button type="button" id="devTargetGrp" class="dev-float" style="display:none"></button>
 
 <script>
 /* ═══════════════════════════════════════════════════════════
@@ -1288,36 +1311,45 @@ function renderVolatility(){
 /* ═══════════════════════════════════════════════════════════
    렌더 — 편차 (대상 종목 1개)
    ═══════════════════════════════════════════════════════════ */
+// 편차분석 대상 전환 버튼. 화면 우측 중앙에 항상 떠 있는 플로팅 버튼 하나이며(#devTargetGrp
+// 자체가 버튼), 어디를 눌러도 반대쪽 종목으로 바뀐다. 클릭해도 스크롤 이동은 없다 — 이미 보고
+// 있는 화면(변동성 탭이든 편차 탭이든)은 그대로 두고 편차 데이터만 갱신된다.
+// 클릭 핸들러는 페이지 로드 시 한 번만 등록한다. renderDevTargetTabs 는 재조회마다 여러 번
+// 호출되는데, 그 안에서 등록하면 버튼을 껐다 켰다 하는 사이 리스너가 계속 쌓일 수 있다.
+$("devTargetGrp").addEventListener("click", function(){
+  if (!state.B || !state.B.dev) return;   // 숨겨진 상태에서의 우발적 클릭 방지
+  state.devTarget = (state.devTarget === "A") ? "B" : "A";
+  saveSettings();
+  paintDevToggle();
+  renderDeviation();
+  renderSummary();
+});
+
+var devFloatBuilt = false;
 function renderDevTargetTabs(){
   var grp = $("devTargetGrp");
-  if (!state.B || !state.B.dev){ grp.innerHTML = ""; grp.style.display = "none"; return; }
+  if (!state.B || !state.B.dev){ grp.style.display = "none"; return; }
   grp.style.display = "flex";
 
-  // 두 종목을 감싼 영역 전체가 버튼 하나 — 어디를 눌러도 반대쪽으로 전환된다.
-  // 가운데 ⇄ 로 '탭 두 개'가 아니라 '전환 스위치'임을 드러낸다.
-  grp.innerHTML =
-    '<button type="button" class="dev-toggle">' +
-      '<span class="seg" data-k="A"><span class="dot"></span>' +
-        '<span class="tk">' + esc(state.A.symbol) + '</span></span>' +
-      '<span class="swap-ic" aria-hidden="true">⇄</span>' +
-      '<span class="seg" data-k="B"><span class="dot"></span>' +
-        '<span class="tk">' + esc(state.B.symbol) + '</span></span>' +
-    '</button>';
-
-  grp.querySelector(".dev-toggle").addEventListener("click", function(){
-    state.devTarget = (state.devTarget === "A") ? "B" : "A";
-    saveSettings();
-    paintDevToggle();     // DOM 을 새로 만들지 않으므로 키보드 포커스가 버튼에 그대로 남는다
-    renderDeviation();
-    renderSummary();
-  });
+  if (!devFloatBuilt){
+    // 내부 구조는 한 번만 만든다 — 페이지 생애주기 동안 안 바뀌므로 다시 그릴 이유가 없다.
+    grp.innerHTML =
+      '<span class="seg" data-k="A"><span class="dot"></span><span class="tk"></span></span>' +
+      '<span class="swap-ic" aria-hidden="true">⇅</span>' +
+      '<span class="seg" data-k="B"><span class="dot"></span><span class="tk"></span></span>';
+    devFloatBuilt = true;
+  }
+  grp.querySelector('[data-k="A"] .tk').textContent = state.A.symbol;
+  grp.querySelector('[data-k="A"] .tk').title = state.A.label;
+  grp.querySelector('[data-k="B"] .tk').textContent = state.B.symbol;
+  grp.querySelector('[data-k="B"] .tk').title = state.B.label;
   paintDevToggle();
 }
 
 // 선택 표시와 설명만 갱신 (구조는 건드리지 않음)
 function paintDevToggle(){
-  var btn = $("devTargetGrp").querySelector(".dev-toggle");
-  if (!btn) return;
+  var btn = $("devTargetGrp");
+  if (btn.style.display === "none") return;
   var other = (state.devTarget === "A") ? "B" : "A";
   btn.title = "클릭하면 " + state[other].symbol + " 로 전환";
   btn.setAttribute("aria-label", "편차분석 대상 " + state[state.devTarget].symbol +
@@ -1463,14 +1495,11 @@ function renderDeviation(){
 /* ═══════════════════════════════════════════════════════════
    렌더 — 요약 스트립 (편차 대상 종목 기준)
    ═══════════════════════════════════════════════════════════ */
-function renderSummary(){
-  var src = devSource();
-  var d = src.data;
-  if (!d){ $("summaryWrap").style.display = "none"; return; }
+// 종목 하나(A 또는 B)의 요약 카드 한 행 — 두 종목 모두 같은 구성으로 나열한다.
+function summaryRowHtml(k){
+  var d = state[k];
+  if (!d || (!d.dev && !d.vol)) return "";
   var dev = d.dev, vol = d.vol;
-
-  $("summaryWrap").style.display = "block";
-  $("summaryHead").textContent = "요약 · " + d.label + (state.B ? "  (편차 대상 종목 기준)" : "");
 
   // 순서: 현재가 → 변동성 2개 → 편차 3개 (모바일에서 3개씩 2줄로 떨어지도록)
   var cards = [];
@@ -1486,10 +1515,24 @@ function renderSummary(){
                 dev.lastZ >= 1.5 ? cssVar("--sell") : dev.lastZ <= -1.5 ? cssVar("--buy") : cssVar("--ink")]);
     cards.push(["투자 신호", sig.emoji + " " + sig.short, sig.color]);
   }
-  $("summaryStrip").innerHTML = cards.map(function(c){
-    return '<div class="scard"><div class="slbl">' + c[0] + '</div>' +
-           '<div class="sval" style="color:' + c[2] + '">' + c[1] + '</div></div>';
-  }).join("");
+
+  var isCurrent = state.B && state.devTarget === k;   // 편차 섹션에서 지금 보고 있는 종목 표시
+  return '<div class="srow srow-' + k.toLowerCase() + '">' +
+    '<div class="srow-label"><span class="dot"></span>' + esc(d.label) +
+      (isCurrent ? '<span class="cur-badge">편차분석 중</span>' : '') + '</div>' +
+    '<div class="strip">' + cards.map(function(c){
+      return '<div class="scard"><div class="slbl">' + c[0] + '</div>' +
+             '<div class="sval" style="color:' + c[2] + '">' + c[1] + '</div></div>';
+    }).join("") + '</div>' +
+  '</div>';
+}
+
+function renderSummary(){
+  var rows = ["A", "B"].map(summaryRowHtml).join("");
+  if (!rows){ $("summaryWrap").style.display = "none"; return; }
+  $("summaryWrap").style.display = "block";
+  $("summaryHead").textContent = "요약" + (state.B ? " · 두 종목" : "");
+  $("summaryStrip").innerHTML = rows;
 }
 
 function renderAll(){
