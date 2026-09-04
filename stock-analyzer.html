@@ -1385,17 +1385,18 @@ function positionFloatToggle(){
   var docBottom = Math.round(rect.bottom + window.scrollY);
   el.style.right = "auto";
 
-  var fitsOutside = (rect.right + 14 + pillW + 8) <= viewportW;
+  var panelRight = Math.floor(rect.right);
+  var fitsOutside = (panelRight + 14 + pillW + 8) <= viewportW;
   if (fitsOutside){
     // 모드 A — 패널 오른쪽 바깥에 나란히, 아랫변을 패널 하단선에 맞춘다
     el.style.transform = "translateY(-100%)";
-    el.style.left = (Math.round(rect.right) + 14) + "px";
+    el.style.left = (panelRight + 14) + "px";
     var top = Math.max(140, Math.min(docBottom, window.innerHeight - 100));
     el.style.top = top + "px";
   } else {
     // 모드 B — 바깥에 놓을 공간이 없으면 패널 안쪽 우하단 코너에 여유를 두고 앉힌다
     el.style.transform = "none";
-    el.style.left = Math.max(8, Math.round(rect.right) - pillW - DEV_FLOAT_INSET) + "px";
+    el.style.left = Math.max(8, panelRight - pillW - DEV_FLOAT_INSET) + "px";
     el.style.top = Math.max(140, Math.min(docBottom - pillH - DEV_FLOAT_INSET, window.innerHeight - pillH - 8)) + "px";
   }
 }
