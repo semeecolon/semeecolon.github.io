@@ -1387,19 +1387,21 @@ function positionFloatToggle(){
   el.style.right = "auto";
 
   var panelRight = Math.floor(rect.right);
-  // 알약 아랫변이 패널 하단선에서 GAP 만큼 위에 오도록 하는 문서좌표 — 모드 A/B 공통
-  var bottomTarget = docBottom - DEV_FLOAT_GAP;
+  // 알약 아랫변이 놓일 문서좌표 — 패널 하단선에서 GAP 만큼 위, 헤더 위/화면 아래로
+  // 벗어나지 않게 자른다. 이 클램프 기준(최소·최대)을 모드 A/B 가 그대로 공유해야
+  // 화면이 낮아 클램프가 걸리는 경우에도 모드 전환 시 세로 위치가 튀지 않는다.
+  var pillBottom = Math.max(140, Math.min(docBottom - DEV_FLOAT_GAP, window.innerHeight - 8));
   var fitsOutside = (panelRight + DEV_FLOAT_GAP + pillW + 8) <= viewportW;
   if (fitsOutside){
     // 모드 A — 패널 오른쪽 바깥에 나란히
     el.style.transform = "translateY(-100%)";
     el.style.left = (panelRight + DEV_FLOAT_GAP) + "px";
-    el.style.top = Math.max(140, Math.min(bottomTarget, window.innerHeight - 100)) + "px";
+    el.style.top = pillBottom + "px";
   } else {
     // 모드 B — 바깥에 놓을 공간이 없으면 패널 안쪽 우하단 코너에 앉힌다
     el.style.transform = "none";
     el.style.left = Math.max(8, panelRight - pillW - DEV_FLOAT_GAP) + "px";
-    el.style.top = Math.max(140, Math.min(bottomTarget - pillH, window.innerHeight - pillH - 8)) + "px";
+    el.style.top = (pillBottom - pillH) + "px";
   }
 }
 
