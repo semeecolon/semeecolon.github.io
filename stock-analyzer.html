@@ -347,10 +347,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
   /* 모바일은 검색 패널 기준 정렬 대신 화면 하단 쪽에 고정(엄지로 닿기 쉬운 위치).
      top 은 JS 가 건드리지 않도록 비워두고(positionFloatToggle), bottom 으로만 앉힌다.
-     가로 위치도 가장자리에서 더 안쪽으로 들여, 화면 밖으로 삐져나오지 않게 한다.
-     우측 여백은 데스크톱 코너 앉힘과 같은 값(27px, 기존 18px 의 1.5배)을 쓴다. */
+     우측 여백은 데스크톱의 DEV_FLOAT_GAP 과 같은 값을 쓰고, 하단 여백은 그대로 유지한다. */
   .dev-float{
-    top:auto !important; bottom:22px; right:27px; transform:none;
+    top:auto !important; bottom:22px; right:14px; transform:none;
     width:46px; padding:4px; border-radius:20px;
   }
   .dev-float .seg{font-size:9.5px;padding:6px 2px;gap:2px;}
@@ -1360,13 +1359,15 @@ function renderDevTargetTabs(){
 // 데스크톱: 검색 패널(.controls) 기준으로 알약 위치를 계산한다. 화면이 넓어 패널
 // 오른쪽 바깥에 놓을 공간이 있으면 그 옆에 나란히 붙이고(모드 A), 화면이 좁아져
 // 패널이 거의 꽉 차면 가장자리에 반쯤 걸친 모양이 되는 대신 패널 안쪽 우하단
-// 코너에 여유를 두고 앉힌다(모드 B) — 두 경우 모두 아래 DEV_FLOAT_INSET 을 쓴다.
+// 코너에 여유를 두고 앉힌다(모드 B). 좌우 간격뿐 아니라 상하 간격도 두 모드가
+// 같은 DEV_FLOAT_GAP 값을 공유한다 — 그래야 화면 폭이 늘고 줄면서 두 모드를
+// 오갈 때 알약이 위아래로 튀지 않고 좌우로만 매끄럽게 움직인다.
 // position:fixed 이므로 top 은 "뷰포트 위에서부터의 거리"인데, 패널의 document 상
 // 절대 위치(뷰포트 기준 위치 + 현재 스크롤량)를 구하면 스크롤이 얼마든 간에 항상
 // 같은 값이 나온다 — 그 값을 그대로 top 에 쓰면 "스크롤을 맨 위로 올렸을 때 패널
 // 바로 옆"이 되는 지점에 고정되고, 이후 스크롤해도 그 화면 위치에 계속 떠 있는다.
 // 모바일은 CSS 의 bottom 고정을 그대로 쓰므로 top 인라인 값을 지운다.
-var DEV_FLOAT_INSET = 27; // 모바일 우측 여백(18px)의 1.5배 — 데스크톱 코너 앉힘에도 동일 값 사용
+var DEV_FLOAT_GAP = 14; // 박스와의 간격 — 밖에 붙을 때·안쪽에 앉을 때·모바일 우측 여백 모두 동일하게 사용
 function positionFloatToggle(){
   var el = $("devTargetGrp");
   if (el.style.display === "none") return;
@@ -1386,18 +1387,19 @@ function positionFloatToggle(){
   el.style.right = "auto";
 
   var panelRight = Math.floor(rect.right);
-  var fitsOutside = (panelRight + 14 + pillW + 8) <= viewportW;
+  // 알약 아랫변이 패널 하단선에서 GAP 만큼 위에 오도록 하는 문서좌표 — 모드 A/B 공통
+  var bottomTarget = docBottom - DEV_FLOAT_GAP;
+  var fitsOutside = (panelRight + DEV_FLOAT_GAP + pillW + 8) <= viewportW;
   if (fitsOutside){
-    // 모드 A — 패널 오른쪽 바깥에 나란히, 아랫변을 패널 하단선에 맞춘다
+    // 모드 A — 패널 오른쪽 바깥에 나란히
     el.style.transform = "translateY(-100%)";
-    el.style.left = (panelRight + 14) + "px";
-    var top = Math.max(140, Math.min(docBottom, window.innerHeight - 100));
-    el.style.top = top + "px";
+    el.style.left = (panelRight + DEV_FLOAT_GAP) + "px";
+    el.style.top = Math.max(140, Math.min(bottomTarget, window.innerHeight - 100)) + "px";
   } else {
-    // 모드 B — 바깥에 놓을 공간이 없으면 패널 안쪽 우하단 코너에 여유를 두고 앉힌다
+    // 모드 B — 바깥에 놓을 공간이 없으면 패널 안쪽 우하단 코너에 앉힌다
     el.style.transform = "none";
-    el.style.left = Math.max(8, panelRight - pillW - DEV_FLOAT_INSET) + "px";
-    el.style.top = Math.max(140, Math.min(docBottom - pillH - DEV_FLOAT_INSET, window.innerHeight - pillH - 8)) + "px";
+    el.style.left = Math.max(8, panelRight - pillW - DEV_FLOAT_GAP) + "px";
+    el.style.top = Math.max(140, Math.min(bottomTarget - pillH, window.innerHeight - pillH - 8)) + "px";
   }
 }
 
