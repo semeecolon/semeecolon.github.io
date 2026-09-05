@@ -1671,6 +1671,15 @@ function setStatus(msg, kind){
   el.className = kind || "";
 }
 
+// 종목 심볼별 원본 시세 캐시 — {symbol: {p1, p2, data, meta, via}}. p1·p2 가 요청 시점과
+// 정확히 같을 때만 유효(기간·이동평균 창이 같아 워밍업 패딩까지 동일하다는 뜻). 성공한
+// 요청만 기록하므로 실패한 종목은 다음 클릭에서 그대로 다시 시도된다. A/B 자리를 서로
+// 바꿔도(swapBtn) 종목 기준 캐시라 그대로 재사용된다.
+var dataCache = {};
+// 직전에 "완전히 성공"한 조회의 입력 조합 — 이것과 완전히 같으면 아무 것도 하지 않고
+// 생략한다(네트워크 요청은 물론 재렌더링도 없음, 이미 화면이 최신 상태이므로).
+var lastQuery = null;
+
 async function analyze(){
   if (typeof Chart === "undefined"){
     setStatus("차트 라이브러리(Chart.js)를 불러오지 못했습니다. 인터넷 연결 또는 광고 차단기가 cdn.jsdelivr.net 을 막고 있는지 확인 후 새로고침(F5)해주세요.", "err");
@@ -1685,6 +1694,16 @@ async function analyze(){
   if (startVal >= endVal){ setStatus("시작일은 종료일보다 이전이어야 합니다.", "err"); return; }
 
   var W = state.W;
+
+  // 종목(A·B)과 검색조건(기간·이동평균 창)이 직전 성공 조회와 완전히 같으면 요청 자체를
+  // 생략한다. 이동평균 "세트"(미국식/한국식 버튼)는 결과 계산에 영향을 주지 않으므로
+  // (W 만 쓰임) 여기 서명에 넣지 않는다 — 버튼만 바꿔 눌러도 결과가 같다면 생략 대상이다.
+  var sig = symA + "|" + symB + "|" + startVal + "|" + endVal + "|" + W;
+  if (sig === lastQuery){
+    setStatus("입력이 직전 조회와 동일하여 요청을 생략했습니다 (기존 결과 표시 중)");
+    return;
+  }
+
   var startYmd = startVal.replace(/-/g, "");
 
   // ★ 워밍업 패딩 — MA 계산에 필요한 만큼 시작일보다 앞선 데이터를 함께 요청.
@@ -1701,22 +1720,37 @@ async function analyze(){
   setStatus("데이터를 불러오는 중입니다…");
 
   try {
-    var jobs = [fetchSeries(symA, p1, p2)];
-    if (symB) jobs.push(fetchSeries(symB, p1, p2));
-    var res = await Promise.all(jobs);
+    function cacheHit(sym){
+      var c = dataCache[sym];
+      return (c && c.p1 === p1 && c.p2 === p2) ? c : null;
+    }
+    var hitA = cacheHit(symA);
+    var hitB = symB ? cacheHit(symB) : null;
 
-    function build(sym, r){
+    var jobs = [];
+    if (!hitA) jobs.push(fetchSeries(symA, p1, p2).then(function(r){
+      dataCache[symA] = { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via };
+    }));
+    if (symB && !hitB) jobs.push(fetchSeries(symB, p1, p2).then(function(r){
+      dataCache[symB] = { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via };
+    }));
+    await Promise.all(jobs);
+
+    var rA = dataCache[symA];
+    var rB = symB ? dataCache[symB] : null;
+
+    function build(sym, r, cached){
       var vol = computeVolatility(r.data, startYmd);
       var dev = computeDeviation(r.data, startYmd, W);
       return {
         symbol: sym,
         label: (r.meta && r.meta.longName) ? (sym + " — " + r.meta.longName) : tickerLabel(sym),
         currency: (r.meta && r.meta.currency) || "",
-        vol: vol, dev: dev, via: r.via
+        vol: vol, dev: dev, via: cached ? "캐시 재사용" : r.via
       };
     }
-    state.A = build(symA, res[0]);
-    state.B = symB ? build(symB, res[1]) : null;
+    state.A = build(symA, rA, !!hitA);
+    state.B = symB ? build(symB, rB, !!hitB) : null;
     if (!state.B && state.devTarget === "B") state.devTarget = "A";
 
     if (!state.A.vol && !state.A.dev)
@@ -1731,6 +1765,9 @@ async function analyze(){
     $("results").style.display = "block";
     renderAll();
     saveSettings();
+
+    // 완전히 성공했을 때만 기록한다 — 실패한 조합은 다음 클릭에서 다시 시도되어야 하므로.
+    lastQuery = sig;
 
     var via = symA + ": " + state.A.via + (state.B ? " / " + symB + ": " + state.B.via : "");
     setStatus("조회 완료 — " + via + (warn.length ? "\n⚠️ " + warn.join(" / ") : ""), warn.length ? "" : "ok");
