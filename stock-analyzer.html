@@ -16,6 +16,7 @@
   --bg:#0d1117; --panel:#161b22; --panel-2:#0d1117; --border:#30363d;
   --ink:#e6edf3; --ink-soft:#8b949e; --mute:#6e7681;
   --a:#58a6ff; --b:#f0883e;
+  --a-bg:rgba(88,166,255,.26); --b-bg:rgba(240,136,62,.26);
   --buy:#3fb950; --sell:#f85149; --neutral:#484f58;
   --grid:#21262d; --tick:#6e7681;
   --accent:#238636; --accent-ink:#ffffff;
@@ -32,6 +33,7 @@
   --bg:#F2F5F4; --panel:#FFFFFF; --panel-2:#F7F9FA; --border:#DCE2E6;
   --ink:#16202A; --ink-soft:#5B6572; --mute:#8A93A0;
   --a:#3461FD; --b:#E0435A;
+  --a-bg:rgba(52,97,253,.15); --b-bg:rgba(224,67,90,.15);
   --buy:#1E8E5A; --sell:#C0392B; --neutral:#8A93A0;
   --grid:#EEF1F3; --tick:#8A93A0;
   --accent:#16202A; --accent-ink:#ffffff;
@@ -207,7 +209,10 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .srow-a .srow-label .dot{background:var(--a);}
 .srow-b .srow-label .dot{background:var(--b);}
 .srow-label .cur-badge{flex:0 0 auto;font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:999px;
-  background:var(--panel-2);border:1px solid var(--border);color:var(--ink-soft);letter-spacing:.02em;}
+  border:1px solid;letter-spacing:.02em;}
+/* 편차분석 대상 배지 — 해당 행의 색(A=파랑/B=빨강)을 그대로 써서 회색 배지보다 눈에 잘 띄게 한다 */
+.srow-a .cur-badge{background:var(--a-bg);border-color:var(--a);color:var(--a);}
+.srow-b .cur-badge{background:var(--b-bg);border-color:var(--b);color:var(--b);}
 .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
 .scard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:0;}
 .srow-a .scard{border-left:3px solid var(--a);}
