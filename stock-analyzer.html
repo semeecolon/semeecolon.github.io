@@ -1680,7 +1680,25 @@ function setStatus(msg, kind){
 // 정확히 같을 때만 유효(기간·이동평균 창이 같아 워밍업 패딩까지 동일하다는 뜻). 성공한
 // 요청만 기록하므로 실패한 종목은 다음 클릭에서 그대로 다시 시도된다. A/B 자리를 서로
 // 바꿔도(swapBtn) 종목 기준 캐시라 그대로 재사용된다.
-var dataCache = {};
+//
+// 개수를 안 막으면 세션 내내 조회한 서로 다른 종목 수만큼 계속 쌓인다. 최악의 경우(5년
+// 조회 + MA400 워밍업 패딩) 종목 하나당 시세 배열이 약 1,670포인트 · 160~170KB 정도라
+// 실사용(한 세션에 열 개 미만 비교)에서는 무해하지만, 상한이 없으면 오래 켜두고 수십~
+// 수백 종목을 순회하는 극단적 사용에서 계속 불어난다. Map 을 LRU 로 써서 최근에 안 쓴
+// 종목부터 밀어내면 "A는 고정, B만 여러 종목으로 돌려보기" 같은 흔한 패턴에서 A는 절대
+// 밀려나지 않으면서도 최악의 메모리 사용량을 20 × ~170KB ≈ 3.4MB 로 확실히 묶어둔다.
+var DATA_CACHE_MAX = 20;
+var dataCache = new Map();
+function cacheHit(sym, p1, p2){
+  var c = dataCache.get(sym);
+  if (!(c && c.p1 === p1 && c.p2 === p2)) return null;
+  dataCache.delete(sym); dataCache.set(sym, c);   // LRU: 사용한 항목을 최신으로 갱신
+  return c;
+}
+function cacheSet(sym, entry){
+  dataCache.delete(sym); dataCache.set(sym, entry);
+  while (dataCache.size > DATA_CACHE_MAX) dataCache.delete(dataCache.keys().next().value);
+}
 // 직전에 "완전히 성공"한 조회의 입력 조합 — 이것과 완전히 같으면 아무 것도 하지 않고
 // 생략한다(네트워크 요청은 물론 재렌더링도 없음, 이미 화면이 최신 상태이므로).
 var lastQuery = null;
@@ -1725,24 +1743,20 @@ async function analyze(){
   setStatus("데이터를 불러오는 중입니다…");
 
   try {
-    function cacheHit(sym){
-      var c = dataCache[sym];
-      return (c && c.p1 === p1 && c.p2 === p2) ? c : null;
-    }
-    var hitA = cacheHit(symA);
-    var hitB = symB ? cacheHit(symB) : null;
+    var hitA = cacheHit(symA, p1, p2);
+    var hitB = symB ? cacheHit(symB, p1, p2) : null;
 
     var jobs = [];
     if (!hitA) jobs.push(fetchSeries(symA, p1, p2).then(function(r){
-      dataCache[symA] = { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via };
+      cacheSet(symA, { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via });
     }));
     if (symB && !hitB) jobs.push(fetchSeries(symB, p1, p2).then(function(r){
-      dataCache[symB] = { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via };
+      cacheSet(symB, { p1: p1, p2: p2, data: r.data, meta: r.meta, via: r.via });
     }));
     await Promise.all(jobs);
 
-    var rA = dataCache[symA];
-    var rB = symB ? dataCache[symB] : null;
+    var rA = dataCache.get(symA);
+    var rB = symB ? dataCache.get(symB) : null;
 
     function build(sym, r, cached){
       var vol = computeVolatility(r.data, startYmd);
