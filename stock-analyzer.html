@@ -1676,7 +1676,7 @@ function setStatus(msg, kind){
   el.className = kind || "";
 }
 
-// 종목 심볼별 원본 시세 캐시 — {symbol: {p1, p2, data, meta, via}}. p1·p2 가 요청 시점과
+// 종목 심볼별 원본 시세 캐시 — Map(symbol -> {p1, p2, data, meta, via}). p1·p2 가 요청 시점과
 // 정확히 같을 때만 유효(기간·이동평균 창이 같아 워밍업 패딩까지 동일하다는 뜻). 성공한
 // 요청만 기록하므로 실패한 종목은 다음 클릭에서 그대로 다시 시도된다. A/B 자리를 서로
 // 바꿔도(swapBtn) 종목 기준 캐시라 그대로 재사용된다.
