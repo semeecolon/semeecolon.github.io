@@ -1247,14 +1247,15 @@ function lastChange(series){
   return { amount: last - prev, pct: (last - prev) / prev * 100 };
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
-// (배열이 아님) 날짜순 정렬 후 마지막 값을 최근 배당으로 쓴다.
+// (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
+// 않고, 가장 큰 키(가장 최근 시각)를 찾아 그 항목의 amount 를 쓴다.
 function lastDividendAmount(events){
   var divs = events && events.dividends;
   if (!divs) return null;
-  var vals = Object.keys(divs).map(function(k){ return divs[k]; });
-  if (!vals.length) return null;
-  vals.sort(function(a, b){ return a.date - b.date; });
-  return vals[vals.length - 1].amount;
+  var keys = Object.keys(divs);
+  if (!keys.length) return null;
+  var latestKey = keys.reduce(function(a, b){ return Number(a) > Number(b) ? a : b; });
+  return divs[latestKey].amount;
 }
 function getSignal(z){
   // short: 요약 스트립처럼 폭이 좁은 곳에서 쓰는 축약 라벨
@@ -1601,12 +1602,14 @@ function summaryRowHtml(k){
   var ccy = d.currency ? " " + esc(d.currency) : "";
 
   var cards = [];
-  if (dev){
+  if (d.lastClose != null){
+    // 현재가·전일대비는 MA 계산(dev)과 무관한 원본 시리즈 값이라 dev 가 null 이어도
+    // (편차분석에 필요한 거래일이 모자란 경우) 그대로 보여줄 수 있다.
     var chg = d.change;
     var chgColor = !chg || chg.amount === 0 ? cssVar("--ink") : chg.amount > 0 ? cssVar("--buy") : cssVar("--sell");
     var chgText = !chg ? "-" :
       (chg.amount > 0 ? "+" : "") + num(chg.amount) + " (" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)";
-    cards.push({ lbl:"현재가", val: num(dev.lastClose) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor });
+    cards.push({ lbl:"현재가", val: num(d.lastClose) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor });
   }
   if (vol){
     cards.push({ lbl:"변동성", val: "일일 " + fx(vol.sd, 2) + "%", color: cssVar("--ink"),
@@ -1805,6 +1808,9 @@ async function analyze(){
         label: (meta.longName) ? (sym + " — " + meta.longName) : tickerLabel(sym),
         currency: meta.currency || "",
         vol: vol, dev: dev, via: cached ? "캐시 재사용" : r.via,
+        // dev 는 MA 창(W)만큼 거래일이 없으면 통째로 null 이 되는데, 현재가·전일대비는
+        // MA 와 무관하므로 dev 가용성에 묶이지 않도록 원본 시리즈에서 따로 뽑아둔다.
+        lastClose: r.data && r.data.length ? r.data[r.data.length - 1].close : null,
         change: lastChange(r.data),
         high52: meta.fiftyTwoWeekHigh != null ? meta.fiftyTwoWeekHigh : null,
         low52: meta.fiftyTwoWeekLow != null ? meta.fiftyTwoWeekLow : null,
