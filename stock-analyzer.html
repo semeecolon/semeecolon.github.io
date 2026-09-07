@@ -177,6 +177,13 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   border-radius:20px;padding:7px 14px;cursor:pointer;min-height:34px;
 }
 .pill:hover{border-color:var(--ink-soft);color:var(--ink);}
+/* 빠른 기간 행 맨 오른쪽에 붙는 "갱신" 체크박스 — 캐시를 건너뛰고 강제로 새로 조회 */
+.opt-refresh{
+  display:flex;align-items:center;gap:5px;margin-left:auto;
+  font-size:12px;font-weight:600;color:var(--ink-soft);cursor:pointer;user-select:none;
+}
+.opt-refresh:hover{color:var(--ink);}
+.opt-refresh input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
 .pill.active{background:var(--a);border-color:var(--a);color:#fff;}
 /* 이동평균은 8개 중 1개만 활성 — 어느 관례를 골랐는지 색으로 구분 */
 .pill.ma[data-set="us"].active{background:var(--ma-us-bg);border-color:var(--ma-us);color:var(--ma-us);}
@@ -217,13 +224,13 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .scard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:0;}
 .srow-a .scard{border-left:3px solid var(--a);}
 .srow-b .scard{border-left:3px solid var(--b);}
-.slbl{font-size:10.5px;color:var(--mute);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.slbl{font-size:11.5px;color:var(--mute);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 값은 잘라내지 않고 필요하면 다음 줄로 넘긴다 — 자릿수가 큰 원화 가격 등에서
    ellipsis 로 숫자 일부가 안 보이게 되는 것을 막기 위함 (예: "1,646,000.00 KRW") */
 .sval{font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.25;
   word-break:break-word;}
 /* 현재가의 전일 대비 변동, MA 카드의 Z-Score 처럼 카드 하나에 값을 두 줄로 보일 때 쓴다 */
-.ssub{font-size:11.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;line-height:1.3;
+.ssub{font-size:12.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;line-height:1.3;
   margin-top:3px;word-break:break-word;}
 
 /* ── 섹션 탭 (모바일 전용) ────────────────────────────── */
@@ -372,6 +379,8 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
   /* 선택 항목을 촘촘하게 — 세로 스크롤 절감 */
   .opt-row{gap:5px;margin-top:9px;}
+  /* 좁은 화면에서 줄바꿈되면 오른쪽 끝으로 밀려 혼자 뜨는 대신 자연스럽게 왼쪽에 붙는다 */
+  .opt-refresh{margin-left:0;font-size:11px;}
   .opt-label{font-size:10px;}
   .opt-note{display:none;}          /* 좁은 화면에선 부연설명 생략 (title 로 유지) */
   .ma-block{gap:7px;}
@@ -380,9 +389,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   /* 요약: 3개씩 2줄 (현재가·변동성·52주 / MA·Z-Score·투자신호·배당) */
   .strip{grid-template-columns:repeat(3,1fr);gap:6px;}
   .scard{padding:8px 9px;}
-  .slbl{font-size:9.5px;margin-bottom:3px;}
+  .slbl{font-size:10.5px;margin-bottom:3px;}
   .sval{font-size:13px;}
-  .ssub{font-size:10px;margin-top:2px;}
+  .ssub{font-size:11px;margin-top:2px;}
 }
 @media (max-width:560px){
   .ctrl-grid{grid-template-columns:minmax(0,1fr) auto;}
@@ -390,7 +399,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
   .ctrl-grid .f-swap{grid-column:2;}
   .ctrl-grid .f-b{grid-column:1 / -1;}
   .sval{font-size:12px;}
-  .ssub{font-size:9.5px;}
+  .ssub{font-size:10.5px;}
   .pill{padding:5px 8px;}
 }
 </style>
@@ -502,6 +511,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       <button type="button" class="pill" data-months="24" title="2년"   aria-label="2년">2Y</button>
       <button type="button" class="pill" data-months="36" title="3년"   aria-label="3년">3Y</button>
       <button type="button" class="pill" data-months="60" title="5년"   aria-label="5년">5Y</button>
+      <label class="opt-refresh" title="체크하면 캐시를 쓰지 않고 항상 새로 조회합니다 — 조회 결과는 이후 재사용을 위해 캐시에는 그대로 저장됩니다.">
+        <input type="checkbox" id="forceRefresh"> 갱신
+      </label>
     </div>
 
     <!--
@@ -1248,14 +1260,18 @@ function lastChange(series){
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
 // (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
-// 않고, 가장 큰 키(가장 최근 시각)를 찾아 그 항목의 amount 를 쓴다.
-function lastDividendAmount(events){
+// 않고, 가장 큰 키(가장 최근 시각)를 찾아 그 항목의 amount 와 지급일을 함께 반환한다.
+function pickLastDividend(events){
   var divs = events && events.dividends;
   if (!divs) return null;
   var keys = Object.keys(divs);
   if (!keys.length) return null;
   var latestKey = keys.reduce(function(a, b){ return Number(a) > Number(b) ? a : b; });
-  return divs[latestKey].amount;
+  return { amount: divs[latestKey].amount, ts: Number(latestKey) };
+}
+function fmtUnixDate(ts){
+  var d = new Date(ts * 1000);
+  return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
 }
 function getSignal(z){
   // short: 요약 스트립처럼 폭이 좁은 곳에서 쓰는 축약 라벨
@@ -1617,13 +1633,17 @@ function summaryRowHtml(k){
   }
   cards.push({ lbl:"52주 고가·저가", val: num(d.high52) + " / " + num(d.low52), color: cssVar("--ink") });
   if (dev){
+    // Z-Score 서브라인과 투자 신호 배지가 같은 값(dev.lastZ)을 다른 기준으로 색칠하면
+    // 바로 옆 카드끼리 색이 어긋나 보인다(예: Z=+1.2 는 "약한 매도"인데 Z 라인은 중립색)
+    // — 두 곳 모두 getSignal() 하나로만 색을 정해 항상 같은 판정을 쓰게 한다.
     var sig = getSignal(dev.lastZ);
     cards.push({ lbl:"MA" + dev.W + "·Z-Score", val: num(dev.lastMa), color: cssVar("--ma"),
-                 sub: (dev.lastZ > 0 ? "+" : "") + num(dev.lastZ) + "σ",
-                 subColor: dev.lastZ >= 1.5 ? cssVar("--sell") : dev.lastZ <= -1.5 ? cssVar("--buy") : cssVar("--ink") });
+                 sub: (dev.lastZ > 0 ? "+" : "") + num(dev.lastZ) + "σ", subColor: sig.color });
     cards.push({ lbl:"투자 신호", val: sig.emoji + " " + sig.short, color: sig.color });
   }
-  cards.push({ lbl:"최근 배당금", val: d.lastDividend != null ? (num(d.lastDividend) + ccy) : "-", color: cssVar("--ink") });
+  var lastDiv = d.lastDividend;
+  cards.push({ lbl:"최근 배당금", val: lastDiv ? (num(lastDiv.amount) + ccy) : "-", color: cssVar("--ink"),
+               sub: lastDiv ? fmtUnixDate(lastDiv.ts) : null, subColor: cssVar("--mute") });
 
   var isCurrent = state.B && state.devTarget === k;   // 편차 섹션에서 지금 보고 있는 종목 표시
   return '<div class="srow srow-' + k.toLowerCase() + '">' +
@@ -1758,12 +1778,15 @@ async function analyze(){
   if (startVal >= endVal){ setStatus("시작일은 종료일보다 이전이어야 합니다.", "err"); return; }
 
   var W = state.W;
+  // "갱신" 체크 시 캐시를 아예 보지 않고 무조건 새로 요청한다 — 생략 판단도 건너뛴다.
+  // 새로 받아온 결과는 그대로 캐시에 저장되므로, 체크를 다시 풀면 그 결과를 이어서 쓴다.
+  var forceRefresh = $("forceRefresh").checked;
 
   // 종목(A·B)과 검색조건(기간·이동평균 창)이 직전 성공 조회와 완전히 같으면 요청 자체를
   // 생략한다. 이동평균 "세트"(미국식/한국식 버튼)는 결과 계산에 영향을 주지 않으므로
   // (W 만 쓰임) 여기 서명에 넣지 않는다 — 버튼만 바꿔 눌러도 결과가 같다면 생략 대상이다.
   var sig = symA + "|" + symB + "|" + startVal + "|" + endVal + "|" + W;
-  if (sig === lastQuery){
+  if (!forceRefresh && sig === lastQuery){
     setStatus("입력이 직전 조회와 동일하여 요청을 생략했습니다 (기존 결과 표시 중)");
     return;
   }
@@ -1784,8 +1807,8 @@ async function analyze(){
   setStatus("데이터를 불러오는 중입니다…");
 
   try {
-    var hitA = cacheHit(symA, p1, p2);
-    var hitB = symB ? cacheHit(symB, p1, p2) : null;
+    var hitA = forceRefresh ? null : cacheHit(symA, p1, p2);
+    var hitB = (symB && !forceRefresh) ? cacheHit(symB, p1, p2) : null;
 
     var jobs = [];
     if (!hitA) jobs.push(fetchSeries(symA, p1, p2).then(function(r){
@@ -1815,7 +1838,7 @@ async function analyze(){
         high52: meta.fiftyTwoWeekHigh != null ? meta.fiftyTwoWeekHigh : null,
         low52: meta.fiftyTwoWeekLow != null ? meta.fiftyTwoWeekLow : null,
         events: r.events || null,   // 배당·분할·실적 이력 전체 — 추후 배당 이력 기능에서 재사용
-        lastDividend: lastDividendAmount(r.events)
+        lastDividend: pickLastDividend(r.events)
       };
     }
     state.A = build(symA, rA, !!hitA);
