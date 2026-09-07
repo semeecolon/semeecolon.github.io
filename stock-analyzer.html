@@ -1642,8 +1642,10 @@ function summaryRowHtml(k){
     cards.push({ lbl:"투자 신호", val: sig.emoji + " " + sig.short, color: sig.color });
   }
   var lastDiv = d.lastDividend;
-  cards.push({ lbl:"최근 배당금", val: lastDiv ? (num(lastDiv.amount) + ccy) : "-", color: cssVar("--ink"),
-               sub: lastDiv ? fmtUnixDate(lastDiv.ts) : null, subColor: cssVar("--mute") });
+  // lastDiv 는 항상 {amount, ts} 객체거나 null 이라 truthy 검사로도 amount=0 은 문제없이
+  // 걸리지만(객체 자체가 참), 오해를 살 수 있어 null 검사로 명시한다.
+  cards.push({ lbl:"최근 배당금", val: lastDiv != null ? (num(lastDiv.amount) + ccy) : "-", color: cssVar("--ink"),
+               sub: lastDiv != null ? fmtUnixDate(lastDiv.ts) : null, subColor: cssVar("--mute") });
 
   var isCurrent = state.B && state.devTarget === k;   // 편차 섹션에서 지금 보고 있는 종목 표시
   return '<div class="srow srow-' + k.toLowerCase() + '">' +
