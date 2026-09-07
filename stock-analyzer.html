@@ -1625,7 +1625,14 @@ function summaryRowHtml(k){
     var chgColor = !chg || chg.amount === 0 ? cssVar("--ink") : chg.amount > 0 ? cssVar("--buy") : cssVar("--sell");
     var chgText = !chg ? "-" :
       (chg.amount > 0 ? "+" : "") + num(chg.amount) + " (" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)";
-    cards.push({ lbl:"현재가", val: num(d.lastClose) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor });
+    // 오늘 변동폭(|전일대비 %|)이 평소 일일 변동성(σ)보다 크면 "평소보다 많이 움직였다"는
+    // 신호로 카드 배경에 옅은 종목 식별색(A=파랑/B=빨강 계열)을 깐다. rgba 알파를 그대로
+    // 쓰면 뒤에 비치는 모눈 배경 무늬가 카드에 그대로 드러나므로(신호박스에서 이미 겪은
+    // 문제), 패널색과 섞은 불투명 색을 쓴다 — mixColor(강조색, 패널색, 0.12).
+    var bigMove = chg && vol && Math.abs(chg.pct) > vol.sd;
+    cards.push({ lbl:"현재가", val: num(d.lastClose) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor,
+                 bg: bigMove ? mixColor(cssVar(k === "A" ? "--a" : "--b"), cssVar("--panel"), 0.12) : null,
+                 bgTitle: bigMove ? "오늘 변동폭(" + fx(Math.abs(chg.pct), 2) + "%)이 일일 변동성(" + fx(vol.sd, 2) + "%)보다 큽니다" : null });
   }
   if (vol){
     cards.push({ lbl:"변동성", val: "일일 " + fx(vol.sd, 2) + "%", color: cssVar("--ink"),
@@ -1652,7 +1659,10 @@ function summaryRowHtml(k){
     '<div class="srow-label"><span class="dot"></span>' + esc(d.label) +
       (isCurrent ? '<span class="cur-badge">편차분석 중</span>' : '') + '</div>' +
     '<div class="strip">' + cards.map(function(c){
-      return '<div class="scard"><div class="slbl">' + c.lbl + '</div>' +
+      return '<div class="scard"' +
+             (c.bg ? ' style="background:' + c.bg + '"' : '') +
+             (c.bgTitle ? ' title="' + esc(c.bgTitle) + '"' : '') + '>' +
+             '<div class="slbl">' + c.lbl + '</div>' +
              '<div class="sval" style="color:' + c.color + '">' + c.val + '</div>' +
              (c.sub != null ? '<div class="ssub" style="color:' + c.subColor + '">' + c.sub + '</div>' : '') +
              '</div>';
