@@ -1039,8 +1039,10 @@ $("swapBtn").addEventListener("click", function(){
     sel.appendChild(o);
   });
   sel.addEventListener("change", function(){
-    var pair = TICKER_PAIR_PRESETS[+sel.value];
+    var v = sel.value;
     sel.value = "";   // 같은 항목을 다시 골라도 change 가 나도록 선택을 되돌려둔다
+    if (!v) return;   // 빈 값(placeholder)은 +v 가 0 으로 강제돼 첫 프리셋으로 오인될 수 있어 먼저 걸러낸다
+    var pair = TICKER_PAIR_PRESETS[+v];
     if (!pair) return;
     chooseCombo("A", pair.a);
     chooseCombo("B", pair.b);
