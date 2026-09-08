@@ -236,7 +236,7 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 /* 현재가 카드 머리글 — 라벨은 왼쪽, 기준 시각은 오른쪽. 폭이 모자라면(모바일 3열) 줄바꿈
    대신 각자 말줄임(ellipsis)으로 좁혀 2줄이 되는 것을 막는다. */
 .slbl.slbl-hdr{display:flex;justify-content:space-between;align-items:baseline;gap:6px;overflow:visible;}
-.slbl-hdr .slbl-txt{flex:0 0 auto;white-space:nowrap;}
+.slbl-hdr .slbl-txt{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .slbl-hdr .slbl-time{flex:1 1 auto;min-width:0;text-align:right;font-size:1.08em;font-weight:600;
   font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 값은 잘라내지 않고 필요하면 다음 줄로 넘긴다 — 자릿수가 큰 원화 가격 등에서
@@ -1304,10 +1304,17 @@ function computeDeviation(series, startYmd, W){
 
 // 전일 대비 변동 — 우리가 갖고 있는 일별 종가 두 개로 직접 빼면(휴장일 처리·조정종가
 // 기준 등이 원본과 어긋나) 실제 수치와 안 맞을 수 있어, Yahoo 가 이미 계산해 주는
-// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다.
+// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다. 이 필드가 없는 응답(다른 프록시·
+// 구버전 스키마 등)을 대비해 regularMarketChange 계열로 한 번 더 대체해 본다.
 function metaChange(meta){
-  if (!meta || meta.fulldayChange == null || meta.fulldayChangePercent == null) return null;
-  return { amount: meta.fulldayChange, pct: meta.fulldayChangePercent };
+  if (!meta) return null;
+  if (meta.fulldayChange != null && meta.fulldayChangePercent != null){
+    return { amount: meta.fulldayChange, pct: meta.fulldayChangePercent };
+  }
+  if (meta.regularMarketChange != null && meta.regularMarketChangePercent != null){
+    return { amount: meta.regularMarketChange, pct: meta.regularMarketChangePercent };
+  }
+  return null;
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
 // (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
@@ -1906,8 +1913,9 @@ async function analyze(){
         // MA 와 무관하므로 dev 가용성에 묶이지 않도록 원본 시리즈에서 따로 뽑아둔다.
         lastClose: r.data && r.data.length ? r.data[r.data.length - 1].close : null,
         // meta.fulldayPrice 가 실시간 현재가라 fulldayChange/fulldayChangePercent 와 같은 기준으로
-        // 맞아떨어진다 — 없을 때만 마지막 일봉 종가로 대체한다.
-        curPrice: meta.fulldayPrice != null ? meta.fulldayPrice : null,
+        // 맞아떨어진다 — 없으면 regularMarketPrice 로, 그마저 없으면 마지막 일봉 종가로 대체한다.
+        curPrice: meta.fulldayPrice != null ? meta.fulldayPrice :
+                  meta.regularMarketPrice != null ? meta.regularMarketPrice : null,
         change: metaChange(meta),
         asOf: meta.regularMarketTime != null ? meta.regularMarketTime : null,
         high52: meta.fiftyTwoWeekHigh != null ? meta.fiftyTwoWeekHigh : null,
