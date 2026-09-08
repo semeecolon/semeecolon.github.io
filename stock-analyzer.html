@@ -1304,17 +1304,16 @@ function computeDeviation(series, startYmd, W){
 
 // 전일 대비 변동 — 우리가 갖고 있는 일별 종가 두 개로 직접 빼면(휴장일 처리·조정종가
 // 기준 등이 원본과 어긋나) 실제 수치와 안 맞을 수 있어, Yahoo 가 이미 계산해 주는
-// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다. 이 필드가 없는 응답(다른 프록시·
-// 구버전 스키마 등)을 대비해 regularMarketChange 계열로 한 번 더 대체해 본다.
+// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다. 퍼센트는 fulldayChangePercent 가
+// 없을 때 regularMarketChangePercent 로 대체할 수 있지만, 금액(*Change)은 fullday 계열에만
+// 있고 regularMarketChange 는 신뢰할 수 없어(항상 있는 필드가 아님) 대체하지 않는다 —
+// 그 경우 amount 는 null 로 두고 퍼센트만 표시한다(렌더링 쪽에서 처리).
 function metaChange(meta){
   if (!meta) return null;
-  if (meta.fulldayChange != null && meta.fulldayChangePercent != null){
-    return { amount: meta.fulldayChange, pct: meta.fulldayChangePercent };
-  }
-  if (meta.regularMarketChange != null && meta.regularMarketChangePercent != null){
-    return { amount: meta.regularMarketChange, pct: meta.regularMarketChangePercent };
-  }
-  return null;
+  var pct = meta.fulldayChangePercent != null ? meta.fulldayChangePercent :
+            meta.regularMarketChangePercent != null ? meta.regularMarketChangePercent : null;
+  if (pct == null) return null;
+  return { amount: meta.fulldayChange != null ? meta.fulldayChange : null, pct: pct };
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
 // (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
@@ -1684,9 +1683,13 @@ function summaryRowHtml(k){
     // 현재가·전일대비는 MA 계산(dev)과 무관한 원본 시리즈 값이라 dev 가 null 이어도
     // (편차분석에 필요한 거래일이 모자란 경우) 그대로 보여줄 수 있다.
     var chg = d.change;
-    var chgColor = !chg || chg.amount === 0 ? cssVar("--ink") : chg.amount > 0 ? cssVar("--buy") : cssVar("--sell");
+    // 금액(amount)이 없을 수 있다(regularMarketChangePercent 로만 대체된 경우) — 그때는
+    // 부호를 퍼센트 기준으로 판단하고, 표시도 금액 없이 퍼센트만 보여준다.
+    var chgSign = chg ? (chg.amount != null ? chg.amount : chg.pct) : 0;
+    var chgColor = !chg || chgSign === 0 ? cssVar("--ink") : chgSign > 0 ? cssVar("--buy") : cssVar("--sell");
     var chgText = !chg ? "-" :
-      (chg.amount > 0 ? "+" : "") + num(chg.amount) + " (" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)";
+      (chg.amount != null ? (chg.amount > 0 ? "+" : "") + num(chg.amount) + " " : "") +
+      "(" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)";
     // 오늘 변동폭(|전일대비 %|)이 평소 일일 변동성(σ)보다 크면 "평소보다 많이 움직였다"는
     // 신호로 카드 배경에 옅은 종목 식별색(A=파랑/B=빨강 계열)을 깐다. rgba 알파를 그대로
     // 쓰면 뒤에 비치는 모눈 배경 무늬가 카드에 그대로 드러나므로(신호박스에서 이미 겪은
