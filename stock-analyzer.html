@@ -867,8 +867,14 @@ var PRESETS = TICKER_PRESETS.map(function(p){ return { sym: p.sym.toUpperCase(),
 // TICKER_PRESETS 와 마찬가지로 있어도 되고 없어도 된다(없으면 종목 A·B 입력창의
 // 자동 인식이 그대로 적용된다). 추가·수정은 이 배열만 고치면 된다.
 var TICKER_PAIR_PRESETS = [
-  { a:"SPY", b:"QQQ" },
-  { a:"441640.KS", b:"DIVO" }
+  { a:"SPY", b:"QQQ", name:"S&P500-NASDAQ" },
+  { a:"379800.KS", b:"SPY", name:"K S&P500-SPY" },
+  { a:"379810.KS", b:"QQQ", name:"K Nasdaq100-QQQ" },
+  { a:"458730.KS", b:"SCHD", name:"미배당-SCHD" },
+  { a:"SCHD", b:"VIG", name:"SCHD-VIG" },
+  { a:"441640.KS", b:"DIVO", name:"미배커-DIVO" },
+  { a:"0144L0.KS", b:"QDVO", name:"미성커-QDVO" },
+  { a:"441640.KS", b:"0144L0.KS", name:"미배커-미성커" },
 ];
 var comboOpen = { A:false, B:false };
 var comboIdx  = { A:-1,    B:-1    };   // 키보드로 지목한 항목
