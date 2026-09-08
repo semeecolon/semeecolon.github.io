@@ -233,6 +233,12 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .srow-a .scard{border-left:3px solid var(--a);}
 .srow-b .scard{border-left:3px solid var(--b);}
 .slbl{font-size:11.5px;color:var(--mute);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 현재가 카드 머리글 — 라벨은 왼쪽, 기준 시각은 오른쪽. 폭이 모자라면(모바일 3열) 줄바꿈
+   대신 각자 말줄임(ellipsis)으로 좁혀 2줄이 되는 것을 막는다. */
+.slbl.slbl-hdr{display:flex;justify-content:space-between;align-items:baseline;gap:6px;overflow:visible;}
+.slbl-hdr .slbl-txt{flex:0 0 auto;white-space:nowrap;}
+.slbl-hdr .slbl-time{flex:1 1 auto;min-width:0;text-align:right;font-size:1.08em;font-weight:600;
+  font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 값은 잘라내지 않고 필요하면 다음 줄로 넘긴다 — 자릿수가 큰 원화 가격 등에서
    ellipsis 로 숫자 일부가 안 보이게 되는 것을 막기 위함 (예: "1,646,000.00 KRW") */
 .sval{font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.25;
@@ -1042,7 +1048,7 @@ $("swapBtn").addEventListener("click", function(){
   TICKER_PAIR_PRESETS.forEach(function(pair, i){
     var o = document.createElement("option");
     o.value = String(i);
-    o.textContent = pair.a + " - " + pair.b;
+    o.textContent = pair.name || (pair.a + " - " + pair.b);
     sel.appendChild(o);
   });
   sel.addEventListener("change", function(){
@@ -1296,13 +1302,12 @@ function computeDeviation(series, startYmd, W){
   };
 }
 
-// 전일 대비 변동 — 워밍업 패딩을 포함한 원본 시리즈에서 계산해야, 표시 구간 첫날이라도
-// 그 전 거래일 종가를 항상 찾을 수 있다(표시 구간만 잘라낸 배열에는 그 전날이 없을 수 있음).
-function lastChange(series){
-  if (!series || series.length < 2) return null;
-  var last = series[series.length - 1].close, prev = series[series.length - 2].close;
-  if (!prev) return null;
-  return { amount: last - prev, pct: (last - prev) / prev * 100 };
+// 전일 대비 변동 — 우리가 갖고 있는 일별 종가 두 개로 직접 빼면(휴장일 처리·조정종가
+// 기준 등이 원본과 어긋나) 실제 수치와 안 맞을 수 있어, Yahoo 가 이미 계산해 주는
+// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다.
+function metaChange(meta){
+  if (!meta || meta.fulldayChange == null || meta.fulldayChangePercent == null) return null;
+  return { amount: meta.fulldayChange, pct: meta.fulldayChangePercent };
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
 // (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
@@ -1318,6 +1323,10 @@ function pickLastDividend(events){
 function fmtUnixDate(ts){
   var d = new Date(ts * 1000);
   return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
+}
+function fmtUnixDateTime(ts){
+  var d = new Date(ts * 1000);
+  return fmtUnixDate(ts) + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
 }
 function getSignal(z){
   // short: 요약 스트립처럼 폭이 좁은 곳에서 쓰는 축약 라벨
@@ -1675,7 +1684,9 @@ function summaryRowHtml(k){
     // 쓰면 뒤에 비치는 모눈 배경 무늬가 카드에 그대로 드러나므로(신호박스에서 이미 겪은
     // 문제), 패널색과 섞은 불투명 색을 쓴다 — mixColor(강조색, 패널색, 0.12).
     var bigMove = chg && vol && Math.abs(chg.pct) > vol.sd;
-    cards.push({ lbl:"현재가", val: num(d.lastClose) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor,
+    var curPrice = d.curPrice != null ? d.curPrice : d.lastClose;
+    cards.push({ lbl:"현재가", val: num(curPrice) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor,
+                 timeStr: d.asOf != null ? fmtUnixDateTime(d.asOf) : null,
                  bg: bigMove ? mixColor(cssVar(k === "A" ? "--a" : "--b"), cssVar("--panel"), 0.12) : null,
                  bgTitle: bigMove ? "오늘 변동폭(" + fx(Math.abs(chg.pct), 2) + "%)이 일일 변동성(" + fx(vol.sd, 2) + "%)보다 큽니다" : null });
   }
@@ -1707,7 +1718,10 @@ function summaryRowHtml(k){
       return '<div class="scard"' +
              (c.bg ? ' style="background:' + c.bg + '"' : '') +
              (c.bgTitle ? ' title="' + esc(c.bgTitle) + '"' : '') + '>' +
-             '<div class="slbl">' + c.lbl + '</div>' +
+             (c.timeStr ?
+               '<div class="slbl slbl-hdr"><span class="slbl-txt">' + c.lbl + '</span>' +
+                 '<span class="slbl-time" title="' + esc(c.timeStr) + '">' + esc(c.timeStr) + '</span></div>' :
+               '<div class="slbl">' + c.lbl + '</div>') +
              '<div class="sval" style="color:' + c.color + '">' + c.val + '</div>' +
              (c.sub != null ? '<div class="ssub" style="color:' + c.subColor + '">' + c.sub + '</div>' : '') +
              '</div>';
@@ -1891,7 +1905,11 @@ async function analyze(){
         // dev 는 MA 창(W)만큼 거래일이 없으면 통째로 null 이 되는데, 현재가·전일대비는
         // MA 와 무관하므로 dev 가용성에 묶이지 않도록 원본 시리즈에서 따로 뽑아둔다.
         lastClose: r.data && r.data.length ? r.data[r.data.length - 1].close : null,
-        change: lastChange(r.data),
+        // meta.fulldayPrice 가 실시간 현재가라 fulldayChange/fulldayChangePercent 와 같은 기준으로
+        // 맞아떨어진다 — 없을 때만 마지막 일봉 종가로 대체한다.
+        curPrice: meta.fulldayPrice != null ? meta.fulldayPrice : null,
+        change: metaChange(meta),
+        asOf: meta.regularMarketTime != null ? meta.regularMarketTime : null,
         high52: meta.fiftyTwoWeekHigh != null ? meta.fiftyTwoWeekHigh : null,
         low52: meta.fiftyTwoWeekLow != null ? meta.fiftyTwoWeekLow : null,
         events: r.events || null,   // 배당·분할·실적 이력 전체 — 추후 배당 이력 기능에서 재사용
