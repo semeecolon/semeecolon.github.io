@@ -84,9 +84,17 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
 .controls{margin-bottom:16px;}
 .ctrl-grid{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,314px) auto;
+  /* 종목 A·B 는 폭을 반으로 줄여도 티커 표기에는 문제없어, 그만큼(1fr) 을 종목 프리셋에 준다 */
+  grid-template-columns:minmax(0,.5fr) auto minmax(0,.5fr) minmax(0,1fr) minmax(0,314px) auto;
   gap:12px 14px;align-items:end;
 }
+/* 종목 프리셋 — 종목 A·B 입력창과 같은 모양으로 맞춘 select */
+.f-preset select{
+  width:100%;font-family:'IBM Plex Mono', monospace;font-size:13px;
+  padding:9px 10px;border:1px solid var(--border);border-radius:7px;
+  background:var(--panel-2);color:var(--ink);cursor:pointer;
+}
+.f-preset select:focus-visible{outline:2px solid var(--a);outline-offset:2px;}
 /* 시작일·종료일. 데스크톱에서는 이 묶음이 314px 컬럼 안에 들어가므로 최소폭을 140px 로 둔다
    (160px 이면 2열이 314px 를 넘어 항상 1열로 무너진다). 모바일 최소폭은 아래 미디어쿼리 참고. */
 .date-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
@@ -336,6 +344,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
    ═══════════════════════════════════════════════════════════ */
 @media (max-width:1020px){
   .ctrl-grid{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);}
+  .ctrl-grid .f-preset{grid-column:1 / -1;}
   .ctrl-grid .f-dates{grid-column:1 / -1;}
   .ctrl-grid .f-run{grid-column:1 / -1;}
   #runBtn{width:100%;}
@@ -354,8 +363,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
   /* iOS Safari 는 포커스된 입력창의 글자가 16px 미만이면 페이지를 자동 확대한다.
      16px 이상이면 확대하지 않으므로 모바일 입력창을 16px 로 맞춘다.
-     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다) */
-  .field input{font-size:16px;}
+     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다. select 도 같은 확대
+     문제가 있어 종목 프리셋 select 도 함께 맞춘다) */
+  .field input, .f-preset select{font-size:16px;}
   /* 16px 글자로는 iOS 표기("2026. 8. 10.")에 약 116px 이 필요하다. 그만한 폭이 안 나오는
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
@@ -445,6 +455,10 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
           <ul class="combo-list" id="listB" role="listbox" aria-label="종목 프리셋"></ul>
         </div>
       </div>
+      <div class="field f-preset">
+        <label for="tickerPreset">종목 프리셋</label>
+        <select id="tickerPreset"><option value="">선택…</option></select>
+      </div>
       <!-- 두 날짜는 한 묶음. 폭이 모자라면 auto-fit 이 알아서 세로로 떨어뜨린다. -->
       <div class="date-pair f-dates">
         <div class="field date-field">
@@ -462,44 +476,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       </div>
     </div>
 
-    <!--
-      ▼ 프리셋 종목 추가 방법: 아래 datalist에 <option> 한 줄만 추가하면 입력창 목록에 나타납니다.
-        목록에 없는 티커도 자유롭게 직접 입력할 수 있습니다.
-        value는 Yahoo Finance 티커 (미국: AAPL / 한국: 종목코드 또는 종목코드.KS·.KQ)
-        ※ 브라우저 기본 자동완성 대신 직접 만든 목록을 쓰므로, 이 datalist는 화면에 그려지지 않고
-          데이터 보관 용도로만 쓰입니다. 추가 방법은 그대로입니다.
-    -->
-    <datalist id="tickerOptions">
-      <option value="SPY" label="S&amp;P500 ETF">
-      <option value="QQQ" label="나스닥100 ETF">
-      <option value="DIA" label="다우존스 ETF">
-      <option value="SSO" label="S&amp;P500 2x ETF">
-      <option value="QLD" label="나스닥100 2x ETF">
-      <option value="SOXL" label="반도체 3x ETF">
-      <option value="IWM" label="러셀2000 ETF">
-      <option value="MAGS" label="MAGS ETF">
-      <option value="SCHD" label="슈드 ETF">
-      <option value="VIG" label="VIG ETF">
-      <option value="VYMI" label="VYMI ETF">
-      <option value="TLT" label="TLT ETF">
-      <option value="O" label="리얼티인컴">
-      <option value="IIPR" label="IIPR">
-      <option value="AAPL" label="애플">
-      <option value="NVDA" label="엔비디아">
-      <option value="MSFT" label="마이크로소프트">
-      <option value="GOOGL" label="알파벳">
-      <option value="TSLA" label="테슬라">
-      <option value="069500.KS" label="KODEX 코스피200">
-      <option value="441640.KS" label="미배커(C)">
-      <option value="0144L0.KS" label="미성커(C)">
-      <option value="498410.KS" label="금고탑(C)">
-      <option value="005930.KS" label="삼성전자">
-      <option value="000660.KS" label="SK하이닉스">
-      <option value="009150.KS" label="삼성전기">
-      <option value="005380.KS" label="현대차">
-      <option value="003490.KS" label="대한항공">
-      <option value="373220.KS" label="LG에너지솔루션">
-    </datalist>
+    <!-- 종목 프리셋(개별·쌍) 데이터는 화면에 그려지지 않고 스크립트의
+         TICKER_PRESETS / TICKER_PAIR_PRESETS 상수로 옮겨졌다. 추가·수정은 거기서 한다
+         (지금은 배열을 직접 고치는 방식이고, 나중에 DB·API로 옮기기 쉽도록 JSON 모양 그대로 둔다). -->
 
     <div class="opt-row" id="presetRow">
       <span class="opt-label">빠른 기간</span>
@@ -847,10 +826,50 @@ function syncSuffixBadge(k){
    규칙: 목록에는 항상 전체 종목이 들어가고, 입력값과 관련된 것이 위로 올라간다.
         (입력값이 비어도, 지우는 중에도 목록이 사라지지 않아 동작이 늘 같다)
    ═══════════════════════════════════════════════════════════ */
-var PRESETS = Array.prototype.map.call(
-  document.querySelectorAll("#tickerOptions option"),
-  function(o){ return { sym: (o.value || "").toUpperCase(), name: o.label || "" }; }
-);
+// 종목 프리셋 목록 — JSON 모양 그대로 두어 나중에 DB·API 응답으로 옮기기 쉽게 한다.
+// sym: Yahoo Finance 티커 (미국: AAPL / 한국: 종목코드 또는 종목코드.KS·.KQ), name: 표시용 이름.
+// 추가·수정은 이 배열만 고치면 된다(화면에는 그려지지 않고 데이터 보관 용도).
+var TICKER_PRESETS = [
+  { sym:"SPY", name:"S&P500 ETF" },
+  { sym:"QQQ", name:"나스닥100 ETF" },
+  { sym:"DIA", name:"다우존스 ETF" },
+  { sym:"SSO", name:"S&P500 2x ETF" },
+  { sym:"QLD", name:"나스닥100 2x ETF" },
+  { sym:"SOXL", name:"반도체 3x ETF" },
+  { sym:"IWM", name:"러셀2000 ETF" },
+  { sym:"MAGS", name:"MAGS ETF" },
+  { sym:"SCHD", name:"슈드 ETF" },
+  { sym:"VIG", name:"VIG ETF" },
+  { sym:"VYMI", name:"VYMI ETF" },
+  { sym:"TLT", name:"TLT ETF" },
+  { sym:"O", name:"리얼티인컴" },
+  { sym:"IIPR", name:"IIPR" },
+  { sym:"AAPL", name:"애플" },
+  { sym:"NVDA", name:"엔비디아" },
+  { sym:"MSFT", name:"마이크로소프트" },
+  { sym:"GOOGL", name:"알파벳" },
+  { sym:"TSLA", name:"테슬라" },
+  { sym:"069500.KS", name:"KODEX 코스피200" },
+  { sym:"441640.KS", name:"미배커(C)" },
+  { sym:"0144L0.KS", name:"미성커(C)" },
+  { sym:"498410.KS", name:"금고탑(C)" },
+  { sym:"005930.KS", name:"삼성전자" },
+  { sym:"000660.KS", name:"SK하이닉스" },
+  { sym:"009150.KS", name:"삼성전기" },
+  { sym:"005380.KS", name:"현대차" },
+  { sym:"003490.KS", name:"대한항공" },
+  { sym:"373220.KS", name:"LG에너지솔루션" }
+];
+var PRESETS = TICKER_PRESETS.map(function(p){ return { sym: p.sym.toUpperCase(), name: p.name || "" }; });
+
+// 종목 A·B 를 한 쌍으로 미리 지정해두는 프리셋 — "종목 프리셋" select 에서 고르면
+// a 는 종목 A 에, b 는 종목 B 에 그대로 들어간다(순서 그대로). .KS·.KQ 표기는 위
+// TICKER_PRESETS 와 마찬가지로 있어도 되고 없어도 된다(없으면 종목 A·B 입력창의
+// 자동 인식이 그대로 적용된다). 추가·수정은 이 배열만 고치면 된다.
+var TICKER_PAIR_PRESETS = [
+  { a:"SPY", b:"QQQ" },
+  { a:"441640.KS", b:"DIVO" }
+];
 var comboOpen = { A:false, B:false };
 var comboIdx  = { A:-1,    B:-1    };   // 키보드로 지목한 항목
 var comboRows = { A:[],    B:[]    };   // 현재 그려진 순서의 심볼
@@ -1009,6 +1028,27 @@ $("swapBtn").addEventListener("click", function(){
   var s = sfxState.A; sfxState.A = sfxState.B; sfxState.B = s;
   syncSuffixBadge("A"); syncSuffixBadge("B");
 });
+
+// 종목 프리셋 — 고르면 A·B 입력창에 그대로 순서대로 채운다(선택 하나로 chooseCombo 를
+// 두 번 불러 개별 선택과 동일한 경로를 타게 한다 — 접미사 뱃지 갱신·설정 저장까지 포함).
+(function(){
+  var sel = $("tickerPreset");
+  TICKER_PAIR_PRESETS.forEach(function(pair, i){
+    var o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = pair.a + " - " + pair.b;
+    sel.appendChild(o);
+  });
+  sel.addEventListener("change", function(){
+    var v = sel.value;
+    sel.value = "";   // 같은 항목을 다시 골라도 change 가 나도록 선택을 되돌려둔다
+    if (!v) return;   // 빈 값(placeholder)은 +v 가 0 으로 강제돼 첫 프리셋으로 오인될 수 있어 먼저 걸러낸다
+    var pair = TICKER_PAIR_PRESETS[+v];
+    if (!pair) return;
+    chooseCombo("A", pair.a);
+    chooseCombo("B", pair.b);
+  });
+})();
 
 /* ═══════════════════════════════════════════════════════════
    설정 저장 / 복원
@@ -1288,9 +1328,8 @@ function normalPDF(x, mean, sd){
   return (1/(sd*Math.sqrt(2*Math.PI))) * Math.exp(-((x-mean)*(x-mean))/(2*sd*sd));
 }
 function tickerLabel(sym){
-  var opt = null;
-  try { opt = document.querySelector('#tickerOptions option[value="' + CSS.escape(sym) + '"]'); } catch(e) {}
-  return opt ? (sym + " — " + opt.label) : sym;
+  var p = TICKER_PRESETS.find(function(p){ return p.sym.toUpperCase() === sym.toUpperCase(); });
+  return p ? (sym + " — " + p.name) : sym;
 }
 
 /* ═══════════════════════════════════════════════════════════
