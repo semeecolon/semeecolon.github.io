@@ -363,8 +363,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
   /* iOS Safari 는 포커스된 입력창의 글자가 16px 미만이면 페이지를 자동 확대한다.
      16px 이상이면 확대하지 않으므로 모바일 입력창을 16px 로 맞춘다.
-     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다) */
-  .field input{font-size:16px;}
+     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다. select 도 같은 확대
+     문제가 있어 종목 프리셋 select 도 함께 맞춘다) */
+  .field input, .f-preset select{font-size:16px;}
   /* 16px 글자로는 iOS 표기("2026. 8. 10.")에 약 116px 이 필요하다. 그만한 폭이 안 나오는
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
