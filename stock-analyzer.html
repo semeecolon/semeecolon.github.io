@@ -1333,7 +1333,8 @@ function fmtUnixDate(ts){
 }
 function fmtUnixDateTime(ts){
   var d = new Date(ts * 1000);
-  return fmtUnixDate(ts) + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
+  return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + " " +
+    pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
 }
 function getSignal(z){
   // short: 요약 스트립처럼 폭이 좁은 곳에서 쓰는 축약 라벨
