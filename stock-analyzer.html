@@ -93,6 +93,9 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   width:100%;font-family:'IBM Plex Mono', monospace;font-size:13px;
   padding:9px 10px;border:1px solid var(--border);border-radius:7px;
   background:var(--panel-2);color:var(--ink);cursor:pointer;
+  /* min-height 로 바닥을 깔아 iOS 에서 종목 A·B 입력창보다 납작해지는 것을 막는다
+     (날짜 입력에 쓴 것과 같은 처치 — .date-pair input[type=date] 참고) */
+  min-height:36px;
 }
 .f-preset select:focus-visible{outline:2px solid var(--a);outline-offset:2px;}
 /* 시작일·종료일. 데스크톱에서는 이 묶음이 314px 컬럼 안에 들어가므로 최소폭을 140px 로 둔다
@@ -1053,7 +1056,10 @@ $("swapBtn").addEventListener("click", function(){
   });
   sel.addEventListener("change", function(){
     var v = sel.value;
-    sel.value = "";   // 같은 항목을 다시 골라도 change 가 나도록 선택을 되돌려둔다
+    // 선택값 초기화(같은 항목을 다시 골라도 change 가 나도록)를 다음 틱으로 미룬다 —
+    // change 핸들러 안에서 곧바로 select 의 값을 바꾸면 일부 안드로이드 브라우저
+    // (삼성 인터넷 등)에서 네이티브 선택 목록이 닫히지 않고 그대로 남는 문제가 있다.
+    setTimeout(function(){ sel.value = ""; }, 0);
     if (!v) return;   // 빈 값(placeholder)은 +v 가 0 으로 강제돼 첫 프리셋으로 오인될 수 있어 먼저 걸러낸다
     var pair = TICKER_PAIR_PRESETS[+v];
     if (!pair) return;
