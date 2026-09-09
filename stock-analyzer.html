@@ -1764,14 +1764,21 @@ function summaryRowHtml(k){
   // 아래 종목별 한 줄로 뺐다. exchangeTimezoneName(예: "Asia/Seoul") 이 있으면 그 거래소
   // 현지 시각으로, 없으면 UTC 로 대체한다(fmtUnixDateTime 내부 처리).
   // fullday(장후 포함 하루 전체) 값은 위 현재가 카드와 기준이 달라 참고용으로만 같은 줄에
-  // '|' 로 구분해 덧붙인다 — 값이 있는 항목만 보여준다.
-  var fdParts = [];
-  if (d.fulldayPrice != null) fdParts.push("현재가 " + num(d.fulldayPrice) + ccy);
-  if (d.fulldayChange != null) fdParts.push("변동값 " + (d.fulldayChange > 0 ? "+" : "") + num(d.fulldayChange));
-  if (d.fulldayPct != null) fdParts.push("변동퍼센트 " + (d.fulldayPct > 0 ? "+" : "") + fx(d.fulldayPct, 2) + "%");
-  var fulldayLine = fdParts.length ? "전체장: " + fdParts.join(" / ") : null;
+  // '|' 로 구분해 덧붙인다 — 항목명 없이 값만, 현재가 카드와 같은 색 규칙(현재값=--ink,
+  // 변동금액(퍼센트)=부호에 따라 --buy/--sell)으로 표시해 한눈에 구분되게 한다.
+  var fdPriceHtml = d.fulldayPrice != null ?
+    '<span style="color:' + cssVar("--ink") + '">' + num(d.fulldayPrice) + ccy + '</span>' : null;
+  var fdChgParts = [];
+  if (d.fulldayChange != null) fdChgParts.push((d.fulldayChange > 0 ? "+" : "") + num(d.fulldayChange));
+  if (d.fulldayPct != null) fdChgParts.push("(" + (d.fulldayPct > 0 ? "+" : "") + fx(d.fulldayPct, 2) + "%)");
+  var fdChgSign = d.fulldayChange != null ? d.fulldayChange : d.fulldayPct;
+  var fdChgColor = fdChgSign == null || fdChgSign === 0 ? cssVar("--ink") : fdChgSign > 0 ? cssVar("--buy") : cssVar("--sell");
+  var fdChgHtml = fdChgParts.length ?
+    '<span style="color:' + fdChgColor + '">' + fdChgParts.join(" ") + '</span>' : null;
+  var fdHtmlParts = [fdPriceHtml, fdChgHtml].filter(function(x){ return x != null; });
+  var fulldayHtml = fdHtmlParts.length ? "일변동: " + fdHtmlParts.join(" / ") : null;
   var timeLine = d.asOf != null ?
-    "기준시간: " + fmtUnixDateTime(d.asOf, d.tzName) + (fulldayLine ? " | " + fulldayLine : "") : null;
+    "기준시간: " + fmtUnixDateTime(d.asOf, d.tzName) + (fulldayHtml ? " | " + fulldayHtml : "") : null;
   return '<div class="srow srow-' + k.toLowerCase() + '">' +
     '<div class="srow-label"><span class="dot"></span>' + esc(d.label) +
       (isCurrent ? '<span class="cur-badge">편차분석 중</span>' : '') + '</div>' +
@@ -1784,7 +1791,7 @@ function summaryRowHtml(k){
              (c.sub != null ? '<div class="ssub" style="color:' + c.subColor + '">' + c.sub + '</div>' : '') +
              '</div>';
     }).join("") + '</div>' +
-    (timeLine ? '<div class="srow-time">' + esc(timeLine) + '</div>' : '') +
+    (timeLine ? '<div class="srow-time">' + timeLine + '</div>' : '') +
   '</div>';
 }
 
