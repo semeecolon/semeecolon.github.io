@@ -242,7 +242,8 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   margin-top:3px;word-break:break-word;}
 /* 요약 카드 6개 아래에 종목별로 한 줄 — 시세 기준 시각(거래소 현지 시각). .ssub 와 같은
    크기로 맞춰 카드 값들과 시각적 위계가 어긋나지 않게 한다. */
-.srow-time{font-size:12.5px;font-family:'IBM Plex Mono',monospace;color:var(--mute);margin-top:6px;}
+.srow-time{font-size:12.5px;font-family:'IBM Plex Mono',monospace;color:var(--mute);margin-top:6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ── 섹션 탭 (모바일 전용) ────────────────────────────── */
 #tabBar{display:none;position:sticky;top:0;z-index:20;gap:0;
@@ -1330,21 +1331,27 @@ function fmtUnixDate(ts){
   return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
 }
 // tz 를 주면(meta.exchangeTimezoneName, 예: "Asia/Seoul") 그 거래소 현지 시각으로 표시한다 —
-// 그냥 UTC 로 풀면 실제 체결 시각과 몇 시간씩 어긋나 보인다. tz 가 없으면 UTC 로 대체한다.
+// 그냥 UTC 로 풀면 실제 체결 시각과 몇 시간씩 어긋나 보인다. tz 가 없거나 Intl 이 못 알아듣는
+// 값(외부 API 데이터라 형식을 보장할 수 없다)이면 UTC 로 대체한다.
 function fmtUnixDateTime(ts, tz){
   var d = new Date(ts * 1000);
-  if (!tz){
+  function utc(){
     return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + " " +
       pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
   }
-  var parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, hourCycle: "h23",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit"
-  }).formatToParts(d);
-  var m = {};
-  parts.forEach(function(p){ m[p.type] = p.value; });
-  return m.year + "-" + m.month + "-" + m.day + " " + m.hour + ":" + m.minute + ":" + m.second;
+  if (!tz) return utc();
+  try {
+    var parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hour12: false, hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit"
+    }).formatToParts(d);
+    var m = {};
+    parts.forEach(function(p){ m[p.type] = p.value; });
+    return m.year + "-" + m.month + "-" + m.day + " " + m.hour + ":" + m.minute + ":" + m.second;
+  } catch(e){
+    return utc();
+  }
 }
 function getSignal(z){
   // short: 요약 스트립처럼 폭이 좁은 곳에서 쓰는 축약 라벨
