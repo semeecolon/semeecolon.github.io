@@ -1766,13 +1766,17 @@ function summaryRowHtml(k){
   // fullday(장후 포함 하루 전체) 값은 위 현재가 카드와 기준이 달라 참고용으로만 같은 줄에
   // '|' 로 구분해 덧붙인다 — 항목명 없이 값만, 현재가 카드와 같은 색 규칙(현재값=--ink,
   // 변동금액(퍼센트)=부호에 따라 --buy/--sell)으로 표시해 한눈에 구분되게 한다.
+  var fdInk = cssVar("--ink");
   var fdPriceHtml = d.fulldayPrice != null ?
-    '<span style="color:' + cssVar("--ink") + '">' + num(d.fulldayPrice) + ccy + '</span>' : null;
+    '<span style="color:' + fdInk + '">' + num(d.fulldayPrice) + ccy + '</span>' : null;
   var fdChgParts = [];
   if (d.fulldayChange != null) fdChgParts.push((d.fulldayChange > 0 ? "+" : "") + num(d.fulldayChange));
   if (d.fulldayPct != null) fdChgParts.push("(" + (d.fulldayPct > 0 ? "+" : "") + fx(d.fulldayPct, 2) + "%)");
   var fdChgSign = d.fulldayChange != null ? d.fulldayChange : d.fulldayPct;
-  var fdChgColor = fdChgSign == null || fdChgSign === 0 ? cssVar("--ink") : fdChgSign > 0 ? cssVar("--buy") : cssVar("--sell");
+  // isFinite 로 걸러야 NaN/Infinity 처럼 부호가 없는 값이 else 분기(--sell)로 떨어져
+  // 실제로는 아무 의미 없는 값을 빨간색(하락)으로 잘못 표시하는 걸 막을 수 있다.
+  var fdChgColor = fdChgSign == null || !isFinite(fdChgSign) || fdChgSign === 0 ? fdInk :
+    fdChgSign > 0 ? cssVar("--buy") : cssVar("--sell");
   var fdChgHtml = fdChgParts.length ?
     '<span style="color:' + fdChgColor + '">' + fdChgParts.join(" ") + '</span>' : null;
   var fdHtmlParts = [fdPriceHtml, fdChgHtml].filter(function(x){ return x != null; });
