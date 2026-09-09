@@ -242,7 +242,7 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   margin-top:3px;word-break:break-word;}
 /* 요약 카드 6개 아래에 종목별로 한 줄 — 시세 기준 시각(거래소 현지 시각). .ssub 와 같은
    크기로 맞춰 카드 값들과 시각적 위계가 어긋나지 않게 한다. */
-.srow-time{font-size:12.5px;font-family:'IBM Plex Mono',monospace;color:var(--mute);margin-top:6px;
+.srow-time{font-size:12.5px;font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:700;margin-top:6px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ── 섹션 탭 (모바일 전용) ────────────────────────────── */
@@ -1302,18 +1302,34 @@ function computeDeviation(series, startYmd, W){
   };
 }
 
-// 전일 대비 변동 — 우리가 갖고 있는 일별 종가 두 개로 직접 빼면(휴장일 처리·조정종가
-// 기준 등이 원본과 어긋나) 실제 수치와 안 맞을 수 있어, Yahoo 가 이미 계산해 주는
-// meta.fulldayChange / fulldayChangePercent 를 그대로 쓴다. 퍼센트는 fulldayChangePercent 가
-// 없을 때 regularMarketChangePercent 로 대체할 수 있지만, 금액(*Change)은 fullday 계열에만
-// 있고 regularMarketChange 는 신뢰할 수 없어(항상 있는 필드가 아님) 대체하지 않는다 —
-// 그 경우 amount 는 null 로 두고 퍼센트만 표시한다(렌더링 쪽에서 처리).
-function metaChange(meta){
+// meta.currentTradingPeriod 의 pre/regular/post 구간 중 하나라도 regularMarketTime 을
+// 포함하면 지금 장이 열려 있는 것 — 그 경우에만 fulldayChange(장후까지 포함한 누적 변동)를
+// "현재 변동"으로 써도 의미가 어긋나지 않는다. 셋 다 벗어나면(주말·휴장 등) 장이 닫힌
+// 상태이므로 그 값을 그대로 쓰지 않는다.
+function isInTradingPeriod(ctp, marketTime){
+  if (!ctp || marketTime == null) return false;
+  return ["pre", "regular", "post"].some(function(k){
+    var seg = ctp[k];
+    return seg && seg.start != null && seg.end != null && marketTime >= seg.start && marketTime <= seg.end;
+  });
+}
+// 전일 대비 변동금액 — 장이 열려 있으면 Yahoo 가 계산해 준 fulldayChange 를 쓰고, 닫혀
+// 있으면(regularMarketChange 는 항상 있는 필드가 아니라 대체로 못 쓴다) 우리가 가진
+// 시리즈의 마지막 두 종가 차이로 직접 계산한다 — 이미 확보된 값이라 타임스탬프로 가장
+// 가까운 인덱스를 찾는 방식보다 추가 탐색 없이(O(1)) 더 효율적이다.
+// 변동퍼센트는 regularMarketChangePercent 가 장 상태와 무관하게 항상 신뢰할 수 있는
+// 값이라 별도 분기 없이 그대로 쓴다.
+function computeCurrentChange(meta, series){
   if (!meta) return null;
-  var pct = meta.fulldayChangePercent != null ? meta.fulldayChangePercent :
-            meta.regularMarketChangePercent != null ? meta.regularMarketChangePercent : null;
-  if (pct == null) return null;
-  return { amount: meta.fulldayChange != null ? meta.fulldayChange : null, pct: pct };
+  var pct = meta.regularMarketChangePercent != null ? meta.regularMarketChangePercent : null;
+  var amount = null;
+  if (isInTradingPeriod(meta.currentTradingPeriod, meta.regularMarketTime) && meta.fulldayChange != null){
+    amount = meta.fulldayChange;
+  } else if (series && series.length >= 2 && series[series.length - 1].close != null && series[series.length - 2].close != null){
+    amount = series[series.length - 1].close - series[series.length - 2].close;
+  }
+  if (pct == null && amount == null) return null;
+  return { amount: amount, pct: pct };
 }
 // events.dividends 는 Yahoo 가 {유닉스타임스탬프: {amount, date}} 형태의 객체로 주므로
 // (배열이 아님) 키 자체가 타임스탬프다 — 값 안의 date 필드는 없거나 어긋날 수 있어 믿지
@@ -1742,7 +1758,15 @@ function summaryRowHtml(k){
   // 시세 기준 시각 — 카드 안에 넣었더니 데스크톱·모바일 모두 시인성이 떨어져 카드 6개
   // 아래 종목별 한 줄로 뺐다. exchangeTimezoneName(예: "Asia/Seoul") 이 있으면 그 거래소
   // 현지 시각으로, 없으면 UTC 로 대체한다(fmtUnixDateTime 내부 처리).
-  var timeLine = d.asOf != null ? "기준시간: " + fmtUnixDateTime(d.asOf, d.tzName) : null;
+  // fullday(장후 포함 하루 전체) 값은 위 현재가 카드와 기준이 달라 참고용으로만 같은 줄에
+  // '|' 로 구분해 덧붙인다 — 값이 있는 항목만 보여준다.
+  var fdParts = [];
+  if (d.fulldayPrice != null) fdParts.push("현재가 " + num(d.fulldayPrice) + ccy);
+  if (d.fulldayChange != null) fdParts.push("변동값 " + (d.fulldayChange > 0 ? "+" : "") + num(d.fulldayChange));
+  if (d.fulldayPct != null) fdParts.push("변동퍼센트 " + (d.fulldayPct > 0 ? "+" : "") + fx(d.fulldayPct, 2) + "%");
+  var fulldayLine = fdParts.length ? "전체장: " + fdParts.join(" / ") : null;
+  var timeLine = d.asOf != null ?
+    "기준시간: " + fmtUnixDateTime(d.asOf, d.tzName) + (fulldayLine ? " | " + fulldayLine : "") : null;
   return '<div class="srow srow-' + k.toLowerCase() + '">' +
     '<div class="srow-label"><span class="dot"></span>' + esc(d.label) +
       (isCurrent ? '<span class="cur-badge">편차분석 중</span>' : '') + '</div>' +
@@ -1935,13 +1959,16 @@ async function analyze(){
         // dev 는 MA 창(W)만큼 거래일이 없으면 통째로 null 이 되는데, 현재가·전일대비는
         // MA 와 무관하므로 dev 가용성에 묶이지 않도록 원본 시리즈에서 따로 뽑아둔다.
         lastClose: r.data && r.data.length ? r.data[r.data.length - 1].close : null,
-        // meta.fulldayPrice 가 실시간 현재가라 fulldayChange/fulldayChangePercent 와 같은 기준으로
-        // 맞아떨어진다 — 없으면 regularMarketPrice 로, 그마저 없으면 마지막 일봉 종가로 대체한다.
-        curPrice: meta.fulldayPrice != null ? meta.fulldayPrice :
-                  meta.regularMarketPrice != null ? meta.regularMarketPrice : null,
-        change: metaChange(meta),
+        // regularMarketPrice 가 정규장 기준 현재가 — 없으면 마지막 일봉 종가로 대체한다.
+        curPrice: meta.regularMarketPrice != null ? meta.regularMarketPrice : null,
+        change: computeCurrentChange(meta, r.data),
         asOf: meta.regularMarketTime != null ? meta.regularMarketTime : null,
         tzName: meta.exchangeTimezoneName || null,   // 예: "Asia/Seoul" — 기준시간을 거래소 현지 시각으로 바꿔 보여줄 때 쓴다
+        // fullday* 는 장후까지 포함한 하루 전체 변동이라 위 현재가·변동과는 기준이 달라
+        // 참고용으로만 기준시간 줄에 함께 보여준다.
+        fulldayPrice: meta.fulldayPrice != null ? meta.fulldayPrice : null,
+        fulldayChange: meta.fulldayChange != null ? meta.fulldayChange : null,
+        fulldayPct: meta.fulldayChangePercent != null ? meta.fulldayChangePercent : null,
         high52: meta.fiftyTwoWeekHigh != null ? meta.fiftyTwoWeekHigh : null,
         low52: meta.fiftyTwoWeekLow != null ? meta.fiftyTwoWeekLow : null,
         events: r.events || null,   // 배당·분할·실적 이력 전체 — 추후 배당 이력 기능에서 재사용
