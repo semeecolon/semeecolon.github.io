@@ -1323,8 +1323,10 @@ function computeCurrentChange(meta, series){
   if (!meta) return null;
   var pct = meta.regularMarketChangePercent != null ? meta.regularMarketChangePercent : null;
   var amount = null;
-  if (isInTradingPeriod(meta.currentTradingPeriod, meta.regularMarketTime) && meta.fulldayChange != null){
-    amount = meta.fulldayChange;
+  if (isInTradingPeriod(meta.currentTradingPeriod, meta.regularMarketTime)){
+    // 장이 열려 있는데 fulldayChange 마저 없으면, 전날 종가 기준 시리즈 차이는 지금
+    // 진행 중인 장의 변동과는 다른 값이라 오해를 부른다 — 계산하지 않고 null 로 둔다.
+    amount = meta.fulldayChange != null ? meta.fulldayChange : null;
   } else if (series && series.length >= 2 && series[series.length - 1].close != null && series[series.length - 2].close != null){
     amount = series[series.length - 1].close - series[series.length - 2].close;
   }
@@ -1717,18 +1719,21 @@ function summaryRowHtml(k){
     // 현재가·전일대비는 MA 계산(dev)과 무관한 원본 시리즈 값이라 dev 가 null 이어도
     // (편차분석에 필요한 거래일이 모자란 경우) 그대로 보여줄 수 있다.
     var chg = d.change;
-    // 금액(amount)이 없을 수 있다(regularMarketChangePercent 로만 대체된 경우) — 그때는
-    // 부호를 퍼센트 기준으로 판단하고, 표시도 금액 없이 퍼센트만 보여준다.
+    // amount·pct 둘 다 있을 수도, 둘 중 하나만 있을 수도 있다(장 상태·필드 유무에 따라) —
+    // 있는 것만 이어붙이고, 부호는 amount 를 우선 기준으로 삼되 없으면 pct 로 판단한다.
     var chgSign = chg ? (chg.amount != null ? chg.amount : chg.pct) : 0;
     var chgColor = !chg || chgSign === 0 ? cssVar("--ink") : chgSign > 0 ? cssVar("--buy") : cssVar("--sell");
-    var chgText = !chg ? "-" :
-      (chg.amount != null ? (chg.amount > 0 ? "+" : "") + num(chg.amount) + " " : "") +
-      "(" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)";
+    var chgTextParts = [];
+    if (chg && chg.amount != null) chgTextParts.push((chg.amount > 0 ? "+" : "") + num(chg.amount));
+    if (chg && chg.pct != null) chgTextParts.push("(" + (chg.pct > 0 ? "+" : "") + fx(chg.pct, 2) + "%)");
+    var chgText = chgTextParts.length ? chgTextParts.join(" ") : "-";
     // 오늘 변동폭(|전일대비 %|)이 평소 일일 변동성(σ)보다 크면 "평소보다 많이 움직였다"는
     // 신호로 카드 배경에 옅은 종목 식별색(A=파랑/B=빨강 계열)을 깐다. rgba 알파를 그대로
     // 쓰면 뒤에 비치는 모눈 배경 무늬가 카드에 그대로 드러나므로(신호박스에서 이미 겪은
     // 문제), 패널색과 섞은 불투명 색을 쓴다 — mixColor(강조색, 패널색, 0.12).
-    var bigMove = chg && vol && Math.abs(chg.pct) > vol.sd;
+    // pct 가 없으면(원래는 항상 있어야 하지만 외부 데이터라 장담 못 한다) 비교 자체가
+    // 의미 없으니 강조하지 않는다.
+    var bigMove = chg && vol && chg.pct != null && Math.abs(chg.pct) > vol.sd;
     var curPrice = d.curPrice != null ? d.curPrice : d.lastClose;
     cards.push({ lbl:"현재가", val: num(curPrice) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor,
                  bg: bigMove ? mixColor(cssVar(k === "A" ? "--a" : "--b"), cssVar("--panel"), 0.12) : null,
@@ -1959,7 +1964,8 @@ async function analyze(){
         // dev 는 MA 창(W)만큼 거래일이 없으면 통째로 null 이 되는데, 현재가·전일대비는
         // MA 와 무관하므로 dev 가용성에 묶이지 않도록 원본 시리즈에서 따로 뽑아둔다.
         lastClose: r.data && r.data.length ? r.data[r.data.length - 1].close : null,
-        // regularMarketPrice 가 정규장 기준 현재가 — 없으면 마지막 일봉 종가로 대체한다.
+        // regularMarketPrice 가 정규장 기준 현재가 — 없으면 렌더링 쪽에서 lastClose(바로
+        // 아래 필드)로 대체한다(curPrice != null ? curPrice : lastClose, summaryRowHtml 참고).
         curPrice: meta.regularMarketPrice != null ? meta.regularMarketPrice : null,
         change: computeCurrentChange(meta, r.data),
         asOf: meta.regularMarketTime != null ? meta.regularMarketTime : null,
