@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>US Stock Heatmap</title>
+<title>미국 주식 히트맵</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <style>
   :root{
@@ -165,6 +165,18 @@
     border-color: #3B4452;
     background: #1B222C;
   }
+  .refresh-select {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .refresh-select:focus { outline: none; border-color: #3B4452; }
   .status {
     font-family: var(--mono);
     font-size: 12px;
@@ -191,13 +203,21 @@
 
 <header>
   <div>
-    <h1 id="title">US Market Heatmap</h1>
+    <h1 id="title">미국 주식 히트맵</h1>
     <div class="subtitle">섹터 &gt; 업종 2단 그룹 · 박스 크기 = 시가총액 비중 · 색상 = 등락률</div>
     <div class="tabs" style="margin-top:10px;">
       <button class="tab active" data-market="ALL">전체</button>
       <button class="tab" data-market="NYS">NYSE</button>
       <button class="tab" data-market="NSQ">나스닥</button>
       <button class="tab" data-market="AMX">아멕스</button>
+      <select id="refresh-select" class="refresh-select">
+        <option value="0">자동 새로고침 끔</option>
+        <option value="1">1분마다</option>
+        <option value="2">2분마다</option>
+        <option value="3" selected>3분마다</option>
+        <option value="5">5분마다</option>
+        <option value="10">10분마다</option>
+      </select>
     </div>
   </div>
   <div class="status loading" id="status">불러오는 중…</div>
@@ -215,7 +235,7 @@
 </div>
 
 <div class="note">
-  데이터 소스: <code id="proxy-url-note">PROXY_BASE?market=ALL</code> (개인 Cloudflare Worker 프록시 경유,
+  데이터 소스: <code id="proxy-url-note">PROXY_BASE?country=us&market=ALL</code> (개인 Cloudflare Worker 프록시 경유,
   네이버 증권 해외증시 API를 시가총액순으로 상위 N페이지 조회). crumb 인증이 필요 없어
   Yahoo 대비 훨씬 안정적입니다. 60초 엣지 캐시가 걸려 있어 최대 1분 정도 지연이 있을 수 있습니다.
   섹터(대분류)는 <code>reutersIndustryName</code>(업종)을 GICS 기준으로 재매핑한 것이라, 새로 등장하는
@@ -232,10 +252,10 @@ const PROXY_BASE = "https://stock-heapmap.semeecolon.workers.dev/";
 const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
 
 const MARKET_LABELS = {
-  ALL: "미국 전체",
+  ALL: "전체",
   NYS: "NYSE",
-  NSQ: "Nasdaq",
-  AMX: "AMEX",
+  NSQ: "나스닥",
+  AMX: "아멕스",
 };
 
 document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=us&market=ALL&pages=${PAGES}`;
@@ -312,8 +332,25 @@ function buildHierarchy(records, rootName) {
 }
 
 let DATA = null;
+let currentMarket = 'ALL';
+let refreshMs = 3 * 60 * 1000; // select 기본값(3분마다)과 맞춰둠
+let refreshTimer = null;
+
+// 현재 선택된 거래소 기준으로, 설정된 간격 뒤에 다시 불러오도록 예약.
+// 값이 바뀌거나 수동으로 탭을 눌러도 이 함수가 다시 불리면서 자연스럽게 타이머가 리셋됨.
+function scheduleRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (!refreshMs) return; // 0 = 자동 새로고침 끔
+  refreshTimer = setTimeout(() => loadIndex(currentMarket), refreshMs);
+}
+
+document.getElementById('refresh-select').addEventListener('change', (e) => {
+  refreshMs = parseInt(e.target.value, 10) * 60 * 1000;
+  scheduleRefresh();
+});
 
 async function loadIndex(marketKey) {
+  currentMarket = marketKey;
   const statusEl = document.getElementById('status');
   statusEl.className = 'status loading';
   statusEl.textContent = '불러오는 중…';
@@ -326,7 +363,7 @@ async function loadIndex(marketKey) {
     if (!json.records || json.records.length === 0) throw new Error('빈 응답');
 
     DATA = buildHierarchy(json.records, MARKET_LABELS[marketKey]);
-    document.getElementById('title').textContent = `${MARKET_LABELS[marketKey]} Heatmap`;
+    document.getElementById('title').textContent = `${MARKET_LABELS[marketKey]} 히트맵`;
     statusEl.className = 'status live';
     statusEl.textContent = `LIVE · ${json.count}종목 · ${new Date().toLocaleTimeString('ko-KR')}`;
     render();
@@ -340,6 +377,7 @@ async function loadIndex(marketKey) {
     msg.textContent = `데이터를 불러오지 못했습니다 (${e.message}). 프록시 주소/CORS 설정을 확인해주세요.`;
     wrap.appendChild(msg);
   }
+  scheduleRefresh(); // 성공/실패 상관없이 현재 선택 기준으로 다음 갱신 예약
 }
 
 document.querySelectorAll('.tab').forEach(btn => {
