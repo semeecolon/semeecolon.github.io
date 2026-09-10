@@ -537,7 +537,7 @@ function render() {
         .attr('text-anchor', 'middle')
         .attr('fill', 'rgba(244,246,248,0.92)')
         .attr('font-size', pctFs)
-        .text(`${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(1)}%`);
+        .text(`${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%`);
       const pctWidth = pctText.node().getBBox().width;
       if (pctWidth > maxTextWidth && maxTextWidth > 0) {
         pctFs = Math.max(7, pctFs * (maxTextWidth / pctWidth));
