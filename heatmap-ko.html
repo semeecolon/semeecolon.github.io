@@ -144,6 +144,18 @@
     border-color: #3B4452;
     background: #1B222C;
   }
+  .refresh-select {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .refresh-select:focus { outline: none; border-color: #3B4452; }
   .status {
     font-family: var(--mono);
     font-size: 12px;
@@ -171,6 +183,14 @@
       <button class="tab active" data-market="ALL">전체</button>
       <button class="tab" data-market="KOSPI">코스피</button>
       <button class="tab" data-market="KOSDAQ">코스닥</button>
+      <select id="refresh-select" class="refresh-select">
+        <option value="0">자동 새로고침 끔</option>
+        <option value="1">1분마다</option>
+        <option value="2">2분마다</option>
+        <option value="3" selected>3분마다</option>
+        <option value="5">5분마다</option>
+        <option value="10">10분마다</option>
+      </select>
     </div>
   </div>
   <div class="status loading" id="status">불러오는 중…</div>
@@ -234,8 +254,25 @@ function buildFlat(records, rootName) {
 }
 
 let DATA = null;
+let currentMarket = 'ALL';
+let refreshMs = 3 * 60 * 1000; // select 기본값(3분마다)과 맞춰둠
+let refreshTimer = null;
+
+// 현재 선택된 시장 기준으로, 설정된 간격 뒤에 다시 불러오도록 예약.
+// 값이 바뀌거나 수동으로 탭을 눌러도 이 함수가 다시 불리면서 자연스럽게 타이머가 리셋됨.
+function scheduleRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (!refreshMs) return; // 0 = 자동 새로고침 끔
+  refreshTimer = setTimeout(() => loadMarket(currentMarket), refreshMs);
+}
+
+document.getElementById('refresh-select').addEventListener('change', (e) => {
+  refreshMs = parseInt(e.target.value, 10) * 60 * 1000;
+  scheduleRefresh();
+});
 
 async function loadMarket(marketKey) {
+  currentMarket = marketKey;
   const statusEl = document.getElementById('status');
   statusEl.className = 'status loading';
   statusEl.textContent = '불러오는 중…';
@@ -262,6 +299,7 @@ async function loadMarket(marketKey) {
     msg.textContent = `데이터를 불러오지 못했습니다 (${e.message}). 프록시 주소/CORS 설정을 확인해주세요.`;
     wrap.appendChild(msg);
   }
+  scheduleRefresh(); // 성공/실패 상관없이 현재 선택 기준으로 다음 갱신 예약
 }
 
 document.querySelectorAll('.tab').forEach(btn => {
