@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>한국 주식 히트맵</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg: #0F1419;
+    --panel: #151B23;
+    --grid: #232B36;
+    --text-primary: #E8EDF2;
+    --text-secondary: #7C8894;
+    --down-strong: #E14545;
+    --down-mid: #8C3B3B;
+    --neutral: #3A414B;
+    --up-mid: #2E7050;
+    --up-strong: #1FAE6B;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    padding: 28px 32px 40px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--grid);
+    padding-bottom: 14px;
+  }
+  h1 {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  #chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 620px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  svg { display: block; }
+  .cell rect {
+    stroke: var(--bg);
+    stroke-width: 1.5px;
+  }
+  .ticker {
+    font-family: var(--sans);
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .pct {
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  .cell:hover rect {
+    stroke: var(--text-primary);
+    stroke-width: 1.5px;
+    filter: brightness(1.08);
+  }
+  #tooltip {
+    position: fixed;
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    padding: 10px 13px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 170px;
+  }
+  #tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+  #tooltip .tt-code { color: var(--text-secondary); font-family: var(--mono); font-size: 11px; margin-bottom: 4px; }
+  #tooltip .tt-row { display: flex; justify-content: space-between; margin-top: 4px; color: var(--text-secondary); font-family: var(--mono); font-size: 11.5px; }
+  #tooltip .tt-row span:last-child { color: var(--text-primary); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-bar {
+    width: 260px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .note {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-top: 1px solid var(--grid);
+    padding-top: 14px;
+  }
+  .note code {
+    font-family: var(--mono);
+    background: var(--panel);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+  .tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .tab {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active {
+    color: var(--text-primary);
+    border-color: #3B4452;
+    background: #1B222C;
+  }
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+  }
+  .status.loading { color: var(--text-secondary); }
+  .status.live { color: var(--up-strong); }
+  .status.error { color: var(--down-strong); }
+  .center-msg {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="title">한국 주식 히트맵</h1>
+    <div class="subtitle">평면(그룹 없음) · 박스 크기 = 시가총액 비중 · 색상 = 등락률</div>
+    <div class="tabs" style="margin-top:10px;">
+      <button class="tab active" data-market="ALL">전체</button>
+      <button class="tab" data-market="KOSPI">코스피</button>
+      <button class="tab" data-market="KOSDAQ">코스닥</button>
+    </div>
+  </div>
+  <div class="status loading" id="status">불러오는 중…</div>
+</header>
+
+<div id="chart-wrap">
+  <svg id="chart"></svg>
+</div>
+<div id="tooltip"></div>
+
+<div class="legend">
+  <span>&lt;= -3%</span>
+  <div class="legend-bar" id="legend-gradient"></div>
+  <span>&gt;= +3%</span>
+</div>
+
+<div class="note">
+  데이터 소스: <code id="proxy-url-note">PROXY_BASE?country=kr&market=ALL</code> (미국판과 동일한 Cloudflare Worker,
+  네이버 증권 국내증시 API를 시가총액순으로 상위 N페이지 조회). 한국 API는 업종/섹터 분류 필드가 없어서
+  미국판처럼 섹터별로 묶지 않고 평면으로 표시합니다. 60초 엣지 캐시가 걸려 있어 최대 1분 정도 지연이 있을 수 있습니다.
+</div>
+
+<script>
+// ============================================================
+// 실데이터 프록시 (전용 Cloudflare Worker, heatmap-proxy.js 배포본).
+// 미국판(sp500-heatmap.html)과 같은 Worker를 공유합니다. ?country=kr&market=ALL|KOSPI|KOSDAQ
+// ============================================================
+const PROXY_BASE = "https://stock-heapmap.semeecolon.workers.dev/";
+const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
+
+const MARKET_LABELS = {
+  ALL: "전체",
+  KOSPI: "코스피",
+  KOSDAQ: "코스닥",
+};
+
+document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=kr&market=ALL&pages=${PAGES}`;
+
+// 원화 단위 포맷 (조/억원)
+function formatWon(v) {
+  if (v == null) return '-';
+  const abs = Math.abs(v);
+  if (abs >= 1e12) return (v / 1e12).toFixed(2) + '조원';
+  if (abs >= 1e8) return (v / 1e8).toFixed(1) + '억원';
+  return v.toLocaleString('ko-KR') + '원';
+}
+
+// 프록시가 내려주는 평평한 배열([{ticker,name,marketCap,change,price}, ...])을
+// 트리맵이 기대하는 { name, children:[ 종목... ] } 평면 구조로 변환. (섹터 데이터 없음)
+function buildFlat(records, rootName) {
+  const children = records
+    .filter(r => r.marketCap != null && r.change != null)
+    .map(r => ({
+      name: r.name,   // 한국 종목은 코드보다 종목명이 라벨로 의미 있음
+      code: r.ticker,
+      marketCap: r.marketCap,
+      change: r.change,
+      price: r.price,
+    }));
+  return { name: rootName, children };
+}
+
+let DATA = null;
+
+async function loadMarket(marketKey) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'status loading';
+  statusEl.textContent = '불러오는 중…';
+  document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=kr&market=${marketKey}&pages=${PAGES}`;
+
+  try {
+    const res = await fetch(`${PROXY_BASE}?country=kr&market=${marketKey}&pages=${PAGES}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.records || json.records.length === 0) throw new Error('빈 응답');
+
+    DATA = buildFlat(json.records, MARKET_LABELS[marketKey]);
+    document.getElementById('title').textContent = `${MARKET_LABELS[marketKey]} 히트맵`;
+    statusEl.className = 'status live';
+    statusEl.textContent = `LIVE · ${json.count}종목 · ${new Date().toLocaleTimeString('ko-KR')}`;
+    render();
+  } catch (e) {
+    statusEl.className = 'status error';
+    statusEl.textContent = '불러오기 실패';
+    svg.selectAll('*').remove();
+    wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+    const msg = document.createElement('div');
+    msg.className = 'center-msg';
+    msg.textContent = `데이터를 불러오지 못했습니다 (${e.message}). 프록시 주소/CORS 설정을 확인해주세요.`;
+    wrap.appendChild(msg);
+  }
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadMarket(btn.dataset.market);
+  });
+});
+
+// ---------- 색상 스케일 (등락률 -3% ~ +3% 클램프) ----------
+const style = getComputedStyle(document.documentElement);
+const cVar = (n) => style.getPropertyValue(n).trim();
+const colorScale = d3.scaleLinear()
+  .domain([-3, -1.2, 0, 1.2, 3])
+  .range([cVar('--down-strong'), cVar('--down-mid'), cVar('--neutral'), cVar('--up-mid'), cVar('--up-strong')])
+  .clamp(true);
+
+// ---------- 범례 그라디언트 ----------
+const legendEl = document.getElementById('legend-gradient');
+const stops = d3.range(-3, 3.01, 0.5).map(v => `${colorScale(v)} ${((v+3)/6*100).toFixed(0)}%`);
+legendEl.style.background = `linear-gradient(to right, ${stops.join(',')})`;
+
+// ---------- 트리맵 렌더링 (평면 — 섹터/업종 단계 없음) ----------
+const wrap = document.getElementById('chart-wrap');
+const svg = d3.select('#chart');
+const tooltip = document.getElementById('tooltip');
+
+function render() {
+  if (!DATA) return;
+  wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+  const width = wrap.clientWidth;
+  const height = wrap.clientHeight;
+  svg.attr('width', width).attr('height', height).selectAll('*').remove();
+
+  const root = d3.hierarchy(DATA)
+    .sum(d => d.marketCap || 0)
+    .sort((a, b) => b.value - a.value);
+
+  d3.treemap()
+    .size([width, height])
+    .paddingOuter(2)
+    .paddingInner(1)
+    .tile(d3.treemapSquarify.ratio(1.4))
+    (root);
+
+  const leaves = root.leaves();
+  const cell = svg.selectAll('.cell')
+    .data(leaves)
+    .join('g')
+    .attr('class', 'cell')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+  cell.append('rect')
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0))
+    .attr('fill', d => colorScale(d.data.change));
+
+  cell.each(function(d, i) {
+    const w = d.x1 - d.x0, h = d.y1 - d.y0;
+    const g = d3.select(this);
+    if (w < 20 || h < 16) return;
+
+    const clipId = `kr-cell-clip-${i}`;
+    g.append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('width', w)
+      .attr('height', h);
+    g.attr('clip-path', `url(#${clipId})`);
+
+    const cx = w / 2;
+    const maxTextWidth = Math.max(0, w - 8);
+    const minSide = Math.min(w, h);
+    const MIN_TICKER_FS = 7;
+
+    // 1) 후보 폰트로 종목명을 그려본 뒤, 실제 렌더 폭을 재서 박스보다 넓으면 딱 맞게 줄인다.
+    //    한국 종목명은 길이가 제각각이라(두산에너빌리티 등) 이 실측 보정이 특히 중요합니다.
+    let tickerFs = Math.max(8, Math.min(30, minSide / 4));
+    const tickerText = g.append('text')
+      .attr('class', 'ticker')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#F4F6F8')
+      .attr('font-size', tickerFs)
+      .text(d.data.name);
+
+    const tickerWidth = tickerText.node().getBBox().width;
+    if (tickerWidth > maxTextWidth && maxTextWidth > 0) {
+      const neededFs = tickerFs * (maxTextWidth / tickerWidth);
+      if (neededFs < MIN_TICKER_FS) {
+        tickerText.remove();
+        return; // 억지로 구겨넣지 않고 색상만 표시
+      }
+      tickerFs = neededFs;
+      tickerText.attr('font-size', tickerFs);
+    }
+
+    // 2) 등락률 — 종목명 크기에 딸려가지 않고 박스 크기 기준으로 독립 산정
+    //    (종목명이 길어서 많이 줄어들어도, 등락률 문자열은 항상 짧아서 별도로 더 크게 표시 가능)
+    let pctFs = Math.max(8, Math.min(20, minSide / 4.6));
+    const showPct = h > tickerFs + pctFs + 14;
+    let pctText = null;
+    if (showPct) {
+      pctText = g.append('text')
+        .attr('class', 'pct')
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(244,246,248,0.92)')
+        .attr('font-size', pctFs)
+        .text(`${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%`);
+      const pctWidth = pctText.node().getBBox().width;
+      if (pctWidth > maxTextWidth && maxTextWidth > 0) {
+        pctFs = Math.max(7, pctFs * (maxTextWidth / pctWidth));
+        pctText.attr('font-size', pctFs);
+      }
+    }
+
+    // 3) 최종 확정된 크기 기준으로 세로 위치 배치
+    if (pctText) {
+      const blockH = tickerFs + pctFs + 4;
+      const tickerY = h / 2 - blockH / 2 + tickerFs * 0.85;
+      const pctY = tickerY + pctFs + 4;
+      tickerText.attr('x', cx).attr('y', tickerY);
+      pctText.attr('x', cx).attr('y', pctY);
+    } else {
+      tickerText.attr('x', cx).attr('y', h / 2 + tickerFs * 0.35);
+    }
+  });
+
+  cell.on('mousemove', (event, d) => {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.clientX + 16) + 'px';
+    tooltip.style.top = (event.clientY + 16) + 'px';
+    tooltip.innerHTML = `
+      <div class="tt-name">${d.data.name}</div>
+      <div class="tt-code">${d.data.code}</div>
+      <div class="tt-row"><span>현재가</span><span>${d.data.price != null ? d.data.price.toLocaleString('ko-KR') + '원' : '-'}</span></div>
+      <div class="tt-row"><span>등락률</span><span>${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%</span></div>
+      <div class="tt-row"><span>시가총액</span><span>${formatWon(d.data.marketCap)}</span></div>
+    `;
+  }).on('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+}
+
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => loadMarket('ALL'));
+} else {
+  loadMarket('ALL');
+}
+window.addEventListener('resize', render);
+</script>
+
+</body>
+</html>

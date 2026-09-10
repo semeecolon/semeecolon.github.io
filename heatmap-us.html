@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Stock Heatmap</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg: #0F1419;
+    --panel: #151B23;
+    --grid: #232B36;
+    --text-primary: #E8EDF2;
+    --text-secondary: #7C8894;
+    --down-strong: #E14545;
+    --down-mid: #8C3B3B;
+    --neutral: #3A414B;
+    --up-mid: #2E7050;
+    --up-strong: #1FAE6B;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    padding: 28px 32px 40px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--grid);
+    padding-bottom: 14px;
+  }
+  h1 {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .asof {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+  #chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 620px;
+  }
+  svg { display: block; }
+  .cell rect {
+    stroke: var(--bg);
+    stroke-width: 1.5px;
+  }
+  .sector-label {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    fill: #F4F6F8;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .industry-label {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 10px;
+    fill: var(--text-secondary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .ticker {
+    font-family: var(--mono);
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .pct {
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  .cell:hover rect {
+    stroke: var(--text-primary);
+    stroke-width: 1.5px;
+    filter: brightness(1.08);
+  }
+  #tooltip {
+    position: fixed;
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    padding: 10px 13px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 160px;
+  }
+  #tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+  #tooltip .tt-row { display: flex; justify-content: space-between; margin-top: 4px; color: var(--text-secondary); font-family: var(--mono); font-size: 11.5px; }
+  #tooltip .tt-row span:last-child { color: var(--text-primary); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-bar {
+    width: 260px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .note {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-top: 1px solid var(--grid);
+    padding-top: 14px;
+  }
+  .note code {
+    font-family: var(--mono);
+    background: var(--panel);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .tab {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active {
+    color: var(--text-primary);
+    border-color: #3B4452;
+    background: #1B222C;
+  }
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+  }
+  .status.loading { color: var(--text-secondary); }
+  .status.live { color: var(--up-strong); }
+  .status.error { color: var(--down-strong); }
+  #chart-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .center-msg {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="title">US Market Heatmap</h1>
+    <div class="subtitle">섹터 &gt; 업종 2단 그룹 · 박스 크기 = 시가총액 비중 · 색상 = 등락률</div>
+    <div class="tabs" style="margin-top:10px;">
+      <button class="tab active" data-market="ALL">전체</button>
+      <button class="tab" data-market="NYS">NYSE</button>
+      <button class="tab" data-market="NSQ">나스닥</button>
+      <button class="tab" data-market="AMX">아멕스</button>
+    </div>
+  </div>
+  <div class="status loading" id="status">불러오는 중…</div>
+</header>
+
+<div id="chart-wrap">
+  <svg id="chart"></svg>
+</div>
+<div id="tooltip"></div>
+
+<div class="legend">
+  <span>&lt;= -3%</span>
+  <div class="legend-bar" id="legend-gradient"></div>
+  <span>&gt;= +3%</span>
+</div>
+
+<div class="note">
+  데이터 소스: <code id="proxy-url-note">PROXY_BASE?market=ALL</code> (개인 Cloudflare Worker 프록시 경유,
+  네이버 증권 해외증시 API를 시가총액순으로 상위 N페이지 조회). crumb 인증이 필요 없어
+  Yahoo 대비 훨씬 안정적입니다. 60초 엣지 캐시가 걸려 있어 최대 1분 정도 지연이 있을 수 있습니다.
+  섹터(대분류)는 <code>reutersIndustryName</code>(업종)을 GICS 기준으로 재매핑한 것이라, 새로 등장하는
+  업종명은 자동으로 "기타"로 분류됩니다.
+</div>
+
+<script>
+// ============================================================
+// 실데이터 프록시 (전용 Cloudflare Worker, naver-heatmap-proxy.js 배포본).
+// 기존 차트 프록시(?url=)와는 별개의 Worker이니, 새로 배포한 주소로 바꿔주세요.
+// ?market=ALL|NYS|NSQ|AMX
+// ============================================================
+const PROXY_BASE = "https://stock-heapmap.semeecolon.workers.dev/";
+const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
+
+const MARKET_LABELS = {
+  ALL: "미국 전체",
+  NYS: "NYSE",
+  NSQ: "Nasdaq",
+  AMX: "AMEX",
+};
+
+document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=us&market=ALL&pages=${PAGES}`;
+
+// reutersIndustryName(업종) → GICS 스타일 대분류 섹터로 재매핑.
+// 지금까지 실제 응답(ALL/NYS/AMX)에서 관측된 업종명 기준으로 작성했습니다.
+// 목록에 없는 업종이 새로 나오면 자동으로 "기타"로 들어갑니다.
+const SECTOR_MAP = {
+  "반도체": "기술", "반도체 장비 및 테스트": "기술", "소프트웨어": "기술",
+  "전화 및 소형 장치": "기술", "컴퓨터 하드웨어": "기술", "통신 및 네트워킹": "기술",
+  "IT 서비스 및 컨설팅": "기술", "전자 장비 및 부품": "기술",
+  "온라인 서비스": "통신서비스", "무선 통신 서비스": "통신서비스",
+  "통합 통신 서비스": "통신서비스", "방송": "통신서비스",
+  "백화점": "자유소비재", "자동차 및 트럭 제조": "자유소비재",
+  "주택 개조 제품 및 서비스 소매": "자유소비재", "레스토랑 및 바": "자유소비재",
+  "가정용 전자 제품": "자유소비재", "할인점": "자유소비재",
+  "의류 및 액세서리 소매": "자유소비재",
+  "제약": "헬스케어", "의료 관리": "헬스케어", "의료 장비, 물품 및 유통": "헬스케어",
+  "첨단 의료 장비 및 기술": "헬스케어", "생명 공학 및 의학 연구": "헬스케어",
+  "의료 시설 및 서비스": "헬스케어",
+  "은행": "금융", "경영 지원 서비스": "금융", "소비재 대기업": "금융",
+  "투자 은행 및 중개 서비스": "금융", "투자 관리 및 펀드 운영": "금융",
+  "소비자 대출": "금융", "복합보험 및 중개인": "금융", "손해보험": "금융",
+  "전문 정보 서비스": "금융", "금융, 상품 시장 운영 및 서비스 제공": "금융",
+  "폐쇄형 펀드": "금융", "투자 지주 회사": "금융", "블록 체인 및 암호화폐": "금융",
+  "식품 소매 및 유통": "필수소비재", "무알콜 음료": "필수소비재",
+  "개인 생활 필수 용품": "필수소비재", "담배": "필수소비재",
+  "양조업": "필수소비재", "식품 가공": "필수소비재",
+  "오일, 가스 정제 및 마케팅": "에너지", "통합 오일 및 가스": "에너지",
+  "오일, 가스 탐사 및 생산": "에너지",
+  "다각적 채굴": "소재", "금": "소재", "특수 채굴 및 금속": "소재",
+  "상품 화학": "소재", "금 제외 귀금속 및 광물": "소재", "우라늄": "소재",
+  "철 및 강철": "소재",
+  "중장비 및 차량": "산업재", "항공우주 및 방위": "산업재",
+  "지상 화물 및 물류": "산업재", "전기 부품 및 장비": "산업재",
+  "산업용 기계 및 장비": "산업재", "배달, 우편, 항공 화물 및 육상 물류": "산업재",
+  "중전기장비": "산업재",
+  "특수 REITs": "부동산", "상업용 REITs": "부동산",
+  "전력 유틸리티": "유틸리티",
+};
+function broadSectorOf(industry) {
+  return SECTOR_MAP[industry] || "기타";
+}
+
+// 프록시가 내려주는 평평한 배열([{ticker,name,sector,marketCap,change,price}, ...])을
+// 트리맵이 기대하는 3단 구조({ name, children:[ 섹터 { name, children:[ 업종 { name, children:[종목...] } ] } ] })로 변환.
+function buildHierarchy(records, rootName) {
+  const bySector = new Map(); // 섹터명 -> Map(업종명 -> 종목[])
+  for (const r of records) {
+    if (r.marketCap == null || r.change == null) continue; // 값 없는 종목 제외
+    const industry = r.sector || "Other";
+    const sector = broadSectorOf(industry);
+    if (!bySector.has(sector)) bySector.set(sector, new Map());
+    const industries = bySector.get(sector);
+    if (!industries.has(industry)) industries.set(industry, []);
+    industries.get(industry).push({
+      name: r.ticker,
+      full: r.name,
+      marketCap: r.marketCap,
+      change: r.change,
+      price: r.price,
+    });
+  }
+  return {
+    name: rootName,
+    children: Array.from(bySector, ([sectorName, industries]) => ({
+      name: sectorName,
+      children: Array.from(industries, ([industryName, stocks]) => ({
+        name: industryName,
+        children: stocks,
+      })),
+    })),
+  };
+}
+
+let DATA = null;
+
+async function loadIndex(marketKey) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'status loading';
+  statusEl.textContent = '불러오는 중…';
+  document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=us&market=${marketKey}&pages=${PAGES}`;
+
+  try {
+    const res = await fetch(`${PROXY_BASE}?country=us&market=${marketKey}&pages=${PAGES}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.records || json.records.length === 0) throw new Error('빈 응답');
+
+    DATA = buildHierarchy(json.records, MARKET_LABELS[marketKey]);
+    document.getElementById('title').textContent = `${MARKET_LABELS[marketKey]} Heatmap`;
+    statusEl.className = 'status live';
+    statusEl.textContent = `LIVE · ${json.count}종목 · ${new Date().toLocaleTimeString('ko-KR')}`;
+    render();
+  } catch (e) {
+    statusEl.className = 'status error';
+    statusEl.textContent = '불러오기 실패';
+    svg.selectAll('*').remove();
+    wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+    const msg = document.createElement('div');
+    msg.className = 'center-msg';
+    msg.textContent = `데이터를 불러오지 못했습니다 (${e.message}). 프록시 주소/CORS 설정을 확인해주세요.`;
+    wrap.appendChild(msg);
+  }
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadIndex(btn.dataset.market);
+  });
+});
+
+// ---------- 색상 스케일 (등락률 -3% ~ +3% 클램프) ----------
+const style = getComputedStyle(document.documentElement);
+const cVar = (n) => style.getPropertyValue(n).trim();
+const colorScale = d3.scaleLinear()
+  .domain([-3, -1.2, 0, 1.2, 3])
+  .range([cVar('--down-strong'), cVar('--down-mid'), cVar('--neutral'), cVar('--up-mid'), cVar('--up-strong')])
+  .clamp(true);
+
+// ---------- 범례 그라디언트 ----------
+const legendEl = document.getElementById('legend-gradient');
+const stops = d3.range(-3, 3.01, 0.5).map(v => `${colorScale(v)} ${((v+3)/6*100).toFixed(0)}%`);
+legendEl.style.background = `linear-gradient(to right, ${stops.join(',')})`;
+
+// ---------- 트리맵 렌더링 ----------
+const wrap = document.getElementById('chart-wrap');
+const svg = d3.select('#chart');
+const tooltip = document.getElementById('tooltip');
+
+function render() {
+  if (!DATA) return; // 아직 데이터 로드 전
+  wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+  const width = wrap.clientWidth;
+  const height = wrap.clientHeight;
+  svg.attr('width', width).attr('height', height).selectAll('*').remove();
+
+  const root = d3.hierarchy(DATA)
+    .sum(d => d.marketCap || 0)
+    .sort((a, b) => b.value - a.value);
+
+  d3.treemap()
+    .size([width, height])
+    // depth 0(root→섹터) / 1(섹터→업종) / 2(업종→종목) 별로 여백을 다르게 줘서
+    // 섹터 헤더는 넉넉하게, 업종 헤더는 좁게, 종목 사이는 거의 붙게 만듭니다.
+    .paddingOuter(d => (d.depth === 0 ? 4 : d.depth === 1 ? 2 : 1))
+    .paddingTop(d => (d.depth === 0 ? 22 : d.depth === 1 ? 15 : 0))
+    .paddingInner(d => (d.depth === 0 ? 3 : d.depth === 1 ? 2 : 1))
+    .tile(d3.treemapSquarify.ratio(1.4))
+    (root);
+
+  const allNodes = root.descendants();
+  const sectorNodes = allNodes.filter(d => d.depth === 1);
+  const industryNodes = allNodes.filter(d => d.depth === 2);
+  const leaves = root.leaves();
+
+  // 섹터(depth 1) 배경 + 라벨 — 굵고 큰 대문자
+  const sectors = svg.selectAll('.sector')
+    .data(sectorNodes)
+    .join('g')
+    .attr('class', 'sector');
+
+  sectors.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => d.y1 - d.y0)
+    .attr('fill', 'none')
+    .attr('stroke', cVar('--grid'))
+    .attr('stroke-width', 1.5);
+
+  sectors.append('text')
+    .attr('class', 'sector-label')
+    .attr('x', d => d.x0 + 5)
+    .attr('y', d => d.y0 + 15)
+    .text(d => ((d.x1 - d.x0) < 55 ? '' : d.data.name));
+
+  // 업종(depth 2) 배경 + 라벨 — 작고 옅은 대문자
+  const industries = svg.selectAll('.industry')
+    .data(industryNodes)
+    .join('g')
+    .attr('class', 'industry');
+
+  industries.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => d.y1 - d.y0)
+    .attr('fill', 'none')
+    .attr('stroke', cVar('--grid'))
+    .attr('stroke-width', 0.75);
+
+  industries.append('text')
+    .attr('class', 'industry-label')
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 11)
+    .text(d => ((d.x1 - d.x0) < 48 || (d.y1 - d.y0) < 22 ? '' : d.data.name));
+
+  // 종목(leaf) 셀 — 색상 채우기 + 정중앙 정렬 텍스트
+  const cell = svg.selectAll('.cell')
+    .data(leaves)
+    .join('g')
+    .attr('class', 'cell')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+  cell.append('rect')
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0))
+    .attr('fill', d => colorScale(d.data.change));
+
+  cell.each(function(d, i) {
+    const w = d.x1 - d.x0, h = d.y1 - d.y0;
+    const g = d3.select(this);
+    if (w < 20 || h < 16) return; // 너무 작은 박스는 텍스트 생략
+
+    // 폰트가 커지면서 박스 밖으로 글자가 삐져나갈 수 있어 셀 단위로 클리핑
+    const clipId = `cell-clip-${i}`;
+    g.append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('width', w)
+      .attr('height', h);
+    g.attr('clip-path', `url(#${clipId})`);
+
+    const cx = w / 2;
+    const maxTextWidth = Math.max(0, w - 8); // 좌우 여백 4px씩
+    const minSide = Math.min(w, h);
+    const MIN_TICKER_FS = 7;
+
+    // 1) 박스 크기 기준 후보 폰트로 일단 그려본 뒤, 실제 렌더 폭을 측정해서
+    //    박스보다 넓으면 딱 맞게 줄인다. 그래도 최소 크기 밑으로 내려가면 라벨을 생략.
+    let tickerFs = Math.max(8, Math.min(34, minSide / 3.2));
+    const tickerText = g.append('text')
+      .attr('class', 'ticker')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#F4F6F8')
+      .attr('font-size', tickerFs)
+      .text(d.data.name);
+
+    const tickerWidth = tickerText.node().getBBox().width;
+    if (tickerWidth > maxTextWidth && maxTextWidth > 0) {
+      const neededFs = tickerFs * (maxTextWidth / tickerWidth);
+      if (neededFs < MIN_TICKER_FS) {
+        tickerText.remove();
+        return; // 억지로 구겨넣지 않고 이 박스는 색상만 표시
+      }
+      tickerFs = neededFs;
+      tickerText.attr('font-size', tickerFs);
+    }
+
+    // 2) 등락률 — 티커 크기에 딸려가지 않고 박스 크기 기준으로 독립 산정
+    //    (티커가 길어서 많이 줄어들어도 등락률 문자열은 항상 짧으니 따로 더 크게 표시 가능)
+    let pctFs = Math.max(8, Math.min(20, minSide / 4.6));
+    const showPct = h > tickerFs + pctFs + 14;
+    let pctText = null;
+    if (showPct) {
+      pctText = g.append('text')
+        .attr('class', 'pct')
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(244,246,248,0.92)')
+        .attr('font-size', pctFs)
+        .text(`${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(1)}%`);
+      const pctWidth = pctText.node().getBBox().width;
+      if (pctWidth > maxTextWidth && maxTextWidth > 0) {
+        pctFs = Math.max(7, pctFs * (maxTextWidth / pctWidth));
+        pctText.attr('font-size', pctFs);
+      }
+    }
+
+    // 3) 최종 확정된 크기 기준으로 세로 위치 배치
+    if (pctText) {
+      const blockH = tickerFs + pctFs + 4;
+      const tickerY = h / 2 - blockH / 2 + tickerFs * 0.85;
+      const pctY = tickerY + pctFs + 4;
+      tickerText.attr('x', cx).attr('y', tickerY);
+      pctText.attr('x', cx).attr('y', pctY);
+    } else {
+      tickerText.attr('x', cx).attr('y', h / 2 + tickerFs * 0.35);
+    }
+  });
+
+  cell.on('mousemove', (event, d) => {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.clientX + 16) + 'px';
+    tooltip.style.top = (event.clientY + 16) + 'px';
+    tooltip.innerHTML = `
+      <div class="tt-name">${d.data.name} · ${d.data.full}</div>
+      <div class="tt-row"><span>현재가</span><span>${d.data.price != null ? '$' + d.data.price.toFixed(2) : '-'}</span></div>
+      <div class="tt-row"><span>등락률</span><span>${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%</span></div>
+      <div class="tt-row"><span>업종</span><span>${d.parent.data.name}</span></div>
+      <div class="tt-row"><span>섹터</span><span>${d.parent.parent.data.name}</span></div>
+    `;
+  }).on('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+}
+
+// 웹폰트가 로드되기 전에 측정하면 글자 폭 계산이 틀어질 수 있어, 폰트 로드 후 첫 렌더링을 시작합니다.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => loadIndex('ALL'));
+} else {
+  loadIndex('ALL');
+}
+window.addEventListener('resize', render);
+</script>
+
+</body>
+</html>
