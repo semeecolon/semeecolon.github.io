@@ -406,6 +406,22 @@ const wrap = document.getElementById('chart-wrap');
 const svg = d3.select('#chart');
 const tooltip = document.getElementById('tooltip');
 
+// 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
+function positionTooltip(event) {
+  const margin = 16;
+  const rect = tooltip.getBoundingClientRect();
+  let left = event.clientX + margin;
+  let top = event.clientY + margin;
+  if (left + rect.width > window.innerWidth) {
+    left = event.clientX - rect.width - margin;
+  }
+  if (top + rect.height > window.innerHeight) {
+    top = event.clientY - rect.height - margin;
+  }
+  tooltip.style.left = Math.max(4, left) + 'px';
+  tooltip.style.top = Math.max(4, top) + 'px';
+}
+
 function render() {
   if (!DATA) return; // 아직 데이터 로드 전
   wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
@@ -559,8 +575,6 @@ function render() {
 
   cell.on('mousemove', (event, d) => {
     tooltip.style.display = 'block';
-    tooltip.style.left = (event.clientX + 16) + 'px';
-    tooltip.style.top = (event.clientY + 16) + 'px';
     tooltip.innerHTML = `
       <div class="tt-name">${d.data.name} · ${d.data.full}</div>
       <div class="tt-row"><span>현재가</span><span>${d.data.price != null ? '$' + d.data.price.toFixed(2) : '-'}</span></div>
@@ -568,6 +582,7 @@ function render() {
       <div class="tt-row"><span>업종</span><span>${d.parent.data.name}</span></div>
       <div class="tt-row"><span>섹터</span><span>${d.parent.parent.data.name}</span></div>
     `;
+    positionTooltip(event);
   }).on('mouseleave', () => {
     tooltip.style.display = 'none';
   });
