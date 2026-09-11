@@ -328,6 +328,22 @@ const wrap = document.getElementById('chart-wrap');
 const svg = d3.select('#chart');
 const tooltip = document.getElementById('tooltip');
 
+// 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
+function positionTooltip(event) {
+  const margin = 16;
+  const rect = tooltip.getBoundingClientRect();
+  let left = event.clientX + margin;
+  let top = event.clientY + margin;
+  if (left + rect.width > window.innerWidth) {
+    left = event.clientX - rect.width - margin;
+  }
+  if (top + rect.height > window.innerHeight) {
+    top = event.clientY - rect.height - margin;
+  }
+  tooltip.style.left = Math.max(4, left) + 'px';
+  tooltip.style.top = Math.max(4, top) + 'px';
+}
+
 function render() {
   if (!DATA) return;
   wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
@@ -430,8 +446,6 @@ function render() {
 
   cell.on('mousemove', (event, d) => {
     tooltip.style.display = 'block';
-    tooltip.style.left = (event.clientX + 16) + 'px';
-    tooltip.style.top = (event.clientY + 16) + 'px';
     tooltip.innerHTML = `
       <div class="tt-name">${d.data.name}</div>
       <div class="tt-code">${d.data.code}</div>
@@ -439,6 +453,7 @@ function render() {
       <div class="tt-row"><span>등락률</span><span>${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%</span></div>
       <div class="tt-row"><span>시가총액</span><span>${formatWon(d.data.marketCap)}</span></div>
     `;
+    positionTooltip(event);
   }).on('mouseleave', () => {
     tooltip.style.display = 'none';
   });
