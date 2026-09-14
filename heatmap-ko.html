@@ -218,7 +218,7 @@
 // 실데이터 프록시 (전용 Cloudflare Worker, heatmap-proxy.js 배포본).
 // 미국판(sp500-heatmap.html)과 같은 Worker를 공유합니다. ?country=kr&market=ALL|KOSPI|KOSDAQ
 // ============================================================
-const PROXY_BASE = "https://stock-heapmap.semeecolon.workers.dev/";
+const PROXY_BASE = "https://stock-heatmap.semeecolon.workers.dev/";
 const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
 
 const MARKET_LABELS = {
