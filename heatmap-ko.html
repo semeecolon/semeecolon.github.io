@@ -52,7 +52,7 @@
   #chart-wrap {
     position: relative;
     width: 100%;
-    height: 620px;
+    min-height: 460px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -178,7 +178,7 @@
 <header>
   <div>
     <h1 id="title">한국 주식 히트맵</h1>
-    <div class="subtitle">평면(그룹 없음) · 박스 크기 = 시가총액 비중 · 색상 = 등락률</div>
+    <div class="subtitle">평면(그룹 없음) · 박스 크기 = 시가총액 비중(제곱근 압축) · 색상 = 등락률</div>
     <div class="tabs" style="margin-top:10px;">
       <button class="tab active" data-market="ALL">전체</button>
       <button class="tab" data-market="KOSPI">코스피</button>
@@ -219,7 +219,11 @@
 // 미국판(sp500-heatmap.html)과 같은 Worker를 공유합니다. ?country=kr&market=ALL|KOSPI|KOSDAQ
 // ============================================================
 const PROXY_BASE = "https://stock-heatmap.semeecolon.workers.dev/";
-const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
+const PAGES = 2; // 시총 상위 2페이지(최대 200종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
+
+// 박스 크기 산정에 쓰는 지수. 1 = 시총 그대로(쏠림 심함), 0.5 = 제곱근(너무 납작해짐).
+// 그 사이 값으로 압축 정도를 조절합니다. 1에 가까울수록 시총 차이가 더 크게 드러납니다.
+const SIZE_EXPONENT = 0.7;
 
 const MARKET_LABELS = {
   ALL: "전체",
@@ -328,6 +332,21 @@ const wrap = document.getElementById('chart-wrap');
 const svg = d3.select('#chart');
 const tooltip = document.getElementById('tooltip');
 
+// 모니터/해상도에 따라 맵이 화면을 꽉 채우도록, 헤더 아래부터 뷰포트 끝까지로 높이를 맞춤.
+// 그 아래 범례/설명은 그만큼 밀려나서 필요하면 스크롤됩니다(의도된 동작).
+function resizeChartWrap() {
+  const top = wrap.getBoundingClientRect().top;
+  // 범례(색상 스케일 바)까지는 스크롤 없이 항상 같이 보이도록, 그 높이도 빼고 계산.
+  const legend = document.querySelector('.legend');
+  const legendStyle = legend ? getComputedStyle(legend) : null;
+  const legendSpace = legend
+    ? legend.getBoundingClientRect().height + parseFloat(legendStyle.marginTop || 0) + parseFloat(legendStyle.marginBottom || 0)
+    : 0;
+  const target = Math.max(460, window.innerHeight - top - legendSpace - 12);
+  wrap.style.height = target + 'px';
+}
+resizeChartWrap();
+
 // 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
 function positionTooltip(event) {
   const margin = 16;
@@ -352,7 +371,9 @@ function render() {
   svg.attr('width', width).attr('height', height).selectAll('*').remove();
 
   const root = d3.hierarchy(DATA)
-    .sum(d => d.marketCap || 0)
+    // 박스 크기를 시총 그대로가 아니라 SIZE_EXPONENT 제곱에 비례하게 해서, 상위 1~2종목 쏠림을 완화합니다.
+    // (여전히 크면 클수록 박스도 크지만, 격차가 완만해집니다. 순서에는 영향 없음.)
+    .sum(d => Math.pow(d.marketCap || 0, SIZE_EXPONENT))
     .sort((a, b) => b.value - a.value);
 
   d3.treemap()
@@ -464,7 +485,7 @@ if (document.fonts && document.fonts.ready) {
 } else {
   loadMarket('ALL');
 }
-window.addEventListener('resize', render);
+window.addEventListener('resize', () => { resizeChartWrap(); render(); });
 </script>
 
 </body>
