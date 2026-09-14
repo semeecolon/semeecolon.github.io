@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S&P 500 히트맵</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg: #0F1419;
+    --panel: #151B23;
+    --grid: #232B36;
+    --text-primary: #E8EDF2;
+    --text-secondary: #7C8894;
+    --down-strong: #E14545;
+    --down-mid: #8C3B3B;
+    --neutral: #3A414B;
+    --up-mid: #2E7050;
+    --up-strong: #1FAE6B;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    padding: 28px 32px 40px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--grid);
+    padding-bottom: 14px;
+  }
+  h1 {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .asof {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+  #chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 460px;
+  }
+  svg { display: block; }
+  .cell rect {
+    stroke: var(--bg);
+    stroke-width: 1.5px;
+  }
+  .sector-label {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    fill: #F4F6F8;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .industry-label {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 10px;
+    fill: var(--text-secondary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .ticker {
+    font-family: var(--mono);
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .pct {
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  .cell:hover rect {
+    stroke: var(--text-primary);
+    stroke-width: 1.5px;
+    filter: brightness(1.08);
+  }
+  #tooltip {
+    position: fixed;
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    padding: 10px 13px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 160px;
+  }
+  #tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+  #tooltip .tt-row { display: flex; justify-content: space-between; margin-top: 4px; color: var(--text-secondary); font-family: var(--mono); font-size: 11.5px; }
+  #tooltip .tt-row span:last-child { color: var(--text-primary); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-bar {
+    width: 260px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .note {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-top: 1px solid var(--grid);
+    padding-top: 14px;
+  }
+  .note code {
+    font-family: var(--mono);
+    background: var(--panel);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .tab {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active {
+    color: var(--text-primary);
+    border-color: #3B4452;
+    background: #1B222C;
+  }
+  .refresh-select {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .refresh-select:focus { outline: none; border-color: #3B4452; }
+  .refresh-btn {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .refresh-btn:hover { color: var(--text-primary); border-color: #3B4452; }
+  .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+  .csv-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+  }
+  .status.loading { color: var(--text-secondary); }
+  .status.live { color: var(--up-strong); }
+  .status.error { color: var(--down-strong); }
+  #chart-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .center-msg {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="title">S&amp;P 500 히트맵</h1>
+    <div class="subtitle">GICS 섹터 &gt; 서브 업종 2단 그룹 · 박스 크기 = 시가총액 비중 · 색상 = 등락률</div>
+    <div class="tabs" style="margin-top:10px;">
+      <select id="refresh-select" class="refresh-select">
+        <option value="0">가격 자동 새로고침 끔</option>
+        <option value="1">1분마다</option>
+        <option value="2">2분마다</option>
+        <option value="3" selected>3분마다</option>
+        <option value="5">5분마다</option>
+        <option value="10">10분마다</option>
+      </select>
+      <button id="csv-refresh-btn" class="refresh-btn">종목 목록 강제 갱신</button>
+    </div>
+    <div class="csv-status" id="csv-status">종목 목록: 불러오는 중…</div>
+  </div>
+  <div class="status loading" id="status">불러오는 중…</div>
+</header>
+
+<div id="chart-wrap">
+  <svg id="chart"></svg>
+</div>
+<div id="tooltip"></div>
+
+<div class="legend">
+  <span>&lt;= -3%</span>
+  <div class="legend-bar" id="legend-gradient"></div>
+  <span>&gt;= +3%</span>
+</div>
+
+<div class="note">
+  가격/시총/등락률: 개인 Cloudflare Worker 프록시(<code id="proxy-url-note">PROXY_BASE?country=us&market=ALL&pages=10</code>) 경유
+  네이버 증권 API, 시가총액 상위 약 1,000종목 중 S&amp;P 500 구성종목만 매칭해서 표시합니다.<br>
+  섹터/서브 업종: <a href="https://github.com/datasets/s-and-p-500-companies" style="color:inherit;" target="_blank">GitHub의 S&amp;P 500 구성종목 CSV</a>에서
+  가져온 실제 GICS 분류이며, 브라우저에 24시간 캐싱됩니다 (위 "종목 목록 강제 갱신" 버튼으로 즉시 갱신 가능).
+  60초 엣지 캐시가 걸려 있어 가격 데이터는 최대 1분 정도 지연이 있을 수 있습니다.
+</div>
+
+<script>
+// ============================================================
+// 실데이터: 가격/시총/등락률은 기존 히트맵과 같은 Cloudflare Worker(네이버 API 프록시)에서,
+// 섹터/서브업종은 GitHub의 S&P 500 구성종목 CSV에서 가져와 티커 기준으로 매칭합니다.
+// ============================================================
+const PROXY_BASE = "https://stock-heatmap.semeecolon.workers.dev/";
+const LIVE_PAGES = 10; // 시총 상위 10페이지(최대 1000종목) — S&P500 503종목을 넉넉히 커버 (Worker MAX_PAGES=12)
+
+const CSV_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/refs/heads/main/data/constituents.csv";
+const CSV_CACHE_KEY = "sp500_constituents_cache";
+// 저장 스키마 버전. localStorage에 저장하는 구조(필드명 등)를 바꿀 때만 이 값을 올리세요.
+// 형식: {연도끝2자리}.{월(0패딩 없이 1~12)}.{그 달의 변경 순번, 0부터 +1}
+// 예: 2026년 9월 첫 스키마 변경 = "26.9.0", 같은 달에 또 바뀌면 "26.9.1", 다음 달 첫 변경은 "26.10.0".
+// 비교는 항상 단순 일치(===) 여부만 보므로(다르면 무조건 폐기 후 재조회), 정렬 가능성보다는
+// "지금 몇 번째 스키마인지" 코드만 보고 바로 알아볼 수 있게 하는 데 의미가 있습니다.
+const CSV_SCHEMA_VERSION = "26.9.1"; // 26.9.0 → 클래스 A/B/C 중복 제거(dedupShareClasses) 추가로 올림
+const CSV_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
+
+document.getElementById('proxy-url-note').textContent = `${PROXY_BASE}?country=us&market=ALL&pages=${LIVE_PAGES}`;
+
+// ---------- CSV 파싱 (따옴표 안 쉼표 처리) ----------
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      if (field.length || row.length) { row.push(field); rows.push(row); row = []; field = ''; }
+    } else {
+      field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function csvToConstituents(text) {
+  const rows = parseCSV(text).filter(r => r.length > 1);
+  const header = rows[0];
+  const col = {
+    symbol: header.indexOf('Symbol'),
+    security: header.indexOf('Security'),
+    sector: header.indexOf('GICS Sector'),
+    subIndustry: header.indexOf('GICS Sub-Industry'),
+    cik: header.indexOf('CIK'),
+  };
+  return rows.slice(1).map(r => ({
+    ticker: r[col.symbol],
+    name: r[col.security],
+    sector: r[col.sector],
+    subIndustry: r[col.subIndustry],
+    cik: r[col.cik],
+  })).filter(c => c.ticker);
+}
+
+// 구글(GOOGL/GOOG)처럼 한 회사가 복수 클래스 주식으로 중복 상장된 경우, CIK(SEC 고유번호)가
+// 같은 행들을 한 그룹으로 보고 "(Class A)"가 이름에 포함된 쪽만 남깁니다(핀비즈와 동일한 관례).
+// Class A 표기가 없으면 그냥 먼저 나온 행을 남깁니다.
+function dedupShareClasses(constituents) {
+  const byCik = new Map();
+  for (const c of constituents) {
+    const key = c.cik || c.ticker; // CIK가 없으면 자기 자신으로 그룹핑(즉 그룹 크기 1)
+    if (!byCik.has(key)) byCik.set(key, []);
+    byCik.get(key).push(c);
+  }
+  const result = [];
+  for (const group of byCik.values()) {
+    if (group.length === 1) { result.push(group[0]); continue; }
+    const classA = group.find(c => /\(Class A\)/i.test(c.name || ''));
+    result.push(classA || group[0]);
+  }
+  return result;
+}
+
+// 종목코드 표기 차이(BRK.B / BRK-B / BRK B 등)를 흡수하기 위해 영숫자만 남기고 비교.
+function normalizeTicker(t) {
+  return (t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function loadConstituentsFromCache(ignoreTTL) {
+  try {
+    const raw = localStorage.getItem(CSV_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.version !== CSV_SCHEMA_VERSION) return null; // 저장 구조 버전이 다르면 폐기
+    if (!ignoreTTL && Date.now() - parsed.fetchedAt > CSV_TTL_MS) return null;
+    return parsed;
+  } catch (e) {
+    return null; // localStorage 사용 불가 또는 손상된 값 — 조용히 폴백
+  }
+}
+
+function saveConstituentsToCache(data) {
+  try {
+    localStorage.setItem(CSV_CACHE_KEY, JSON.stringify({
+      version: CSV_SCHEMA_VERSION,
+      fetchedAt: Date.now(),
+      data,
+    }));
+  } catch (e) {
+    // 프라이빗 모드 등으로 저장 실패 — 이번 세션은 메모리로만 동작
+  }
+}
+
+let SP500_META = null; // 세션 동안 실제로 쓰는 작업용 사본: [{ticker,name,sector,subIndustry}, ...]
+
+function updateCsvStatus(text) {
+  document.getElementById('csv-status').textContent = `종목 목록: ${text}`;
+}
+
+// forceRefresh=true면 캐시 나이와 상관없이 무조건 새로 받음(수동 버튼용).
+async function ensureConstituents(forceRefresh) {
+  if (!forceRefresh) {
+    const cached = loadConstituentsFromCache(false);
+    if (cached) {
+      SP500_META = cached.data;
+      updateCsvStatus(`캐시 사용 (${cached.data.length}종목 · ${new Date(cached.fetchedAt).toLocaleString('ko-KR')} 저장분)`);
+      return;
+    }
+  }
+  updateCsvStatus('GitHub에서 새로 받는 중…');
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) throw new Error(`CSV HTTP ${res.status}`);
+    const data = dedupShareClasses(csvToConstituents(await res.text()));
+    if (!data.length) throw new Error('빈 CSV');
+    SP500_META = data;
+    saveConstituentsToCache(data);
+    updateCsvStatus(`새로 받음 (${data.length}종목 · ${new Date().toLocaleString('ko-KR')})`);
+  } catch (e) {
+    // 실패 시: 이미 메모리에 있으면 그대로 유지, 없으면 TTL 무시하고 오래된 캐시라도 사용, 그것도 없으면 에러 전파
+    if (SP500_META) {
+      updateCsvStatus(`갱신 실패, 기존 목록 유지 (${e.message})`);
+      return;
+    }
+    const stale = loadConstituentsFromCache(true);
+    if (stale) {
+      SP500_META = stale.data;
+      updateCsvStatus(`갱신 실패, 오래된 캐시 사용 (${new Date(stale.fetchedAt).toLocaleString('ko-KR')} 저장분)`);
+      return;
+    }
+    updateCsvStatus(`불러오기 실패 (${e.message})`);
+    throw e;
+  }
+}
+
+// 프록시가 내려주는 평평한 배열을 GICS 섹터>서브업종>종목 3단 구조로 변환.
+function buildHierarchy(records, rootName) {
+  const bySector = new Map();
+  for (const r of records) {
+    if (r.marketCap == null || r.change == null) continue;
+    const sector = r.sector || '기타';
+    const sub = r.subIndustry || 'Other';
+    if (!bySector.has(sector)) bySector.set(sector, new Map());
+    const subs = bySector.get(sector);
+    if (!subs.has(sub)) subs.set(sub, []);
+    subs.get(sub).push({
+      name: r.ticker,
+      full: r.name,
+      marketCap: r.marketCap,
+      change: r.change,
+      price: r.price,
+    });
+  }
+  return {
+    name: rootName,
+    children: Array.from(bySector, ([sectorName, subs]) => ({
+      name: sectorName,
+      children: Array.from(subs, ([subName, stocks]) => ({ name: subName, children: stocks })),
+    })),
+  };
+}
+
+let DATA = null;
+let refreshMs = 3 * 60 * 1000; // select 기본값(3분마다)과 맞춰둠
+let refreshTimer = null;
+
+// 가격 데이터만 다시 불러오도록 예약 (종목 목록 CSV는 건드리지 않음 — 별도 주기).
+function scheduleRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (!refreshMs) return; // 0 = 자동 새로고침 끔
+  refreshTimer = setTimeout(() => loadHeatmap(false), refreshMs);
+}
+
+document.getElementById('refresh-select').addEventListener('change', (e) => {
+  refreshMs = parseInt(e.target.value, 10) * 60 * 1000;
+  scheduleRefresh();
+});
+
+document.getElementById('csv-refresh-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('csv-refresh-btn');
+  btn.disabled = true;
+  await loadHeatmap(true); // 종목 목록까지 강제로 새로 받고 화면도 다시 그림
+  btn.disabled = false;
+});
+
+async function loadHeatmap(forceCsvRefresh) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'status loading';
+  statusEl.textContent = '불러오는 중…';
+
+  try {
+    await ensureConstituents(forceCsvRefresh);
+
+    const res = await fetch(`${PROXY_BASE}?country=us&market=ALL&pages=${LIVE_PAGES}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.records || json.records.length === 0) throw new Error('빈 응답');
+
+    const metaByTicker = new Map(SP500_META.map(m => [normalizeTicker(m.ticker), m]));
+    const matched = [];
+    for (const r of json.records) {
+      const meta = metaByTicker.get(normalizeTicker(r.ticker));
+      if (!meta) continue;
+      matched.push({
+        ticker: r.ticker,
+        name: meta.name || r.name,
+        sector: meta.sector,
+        subIndustry: meta.subIndustry,
+        marketCap: r.marketCap,
+        change: r.change,
+        price: r.price,
+      });
+    }
+
+    DATA = buildHierarchy(matched, 'S&P 500');
+    statusEl.className = 'status live';
+    statusEl.textContent = `LIVE · ${matched.length}/${SP500_META.length} 매칭 · ${new Date().toLocaleTimeString('ko-KR')}`;
+    render();
+  } catch (e) {
+    statusEl.className = 'status error';
+    statusEl.textContent = '불러오기 실패';
+    svg.selectAll('*').remove();
+    wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+    const msg = document.createElement('div');
+    msg.className = 'center-msg';
+    msg.textContent = `데이터를 불러오지 못했습니다 (${e.message}). 프록시 주소/CORS 설정을 확인해주세요.`;
+    wrap.appendChild(msg);
+  }
+  scheduleRefresh(); // 성공/실패 상관없이 가격 데이터 다음 갱신은 계속 예약 (CSV는 건드리지 않음)
+}
+
+// ---------- 색상 스케일 (등락률 -3% ~ +3% 클램프) ----------
+const style = getComputedStyle(document.documentElement);
+const cVar = (n) => style.getPropertyValue(n).trim();
+const colorScale = d3.scaleLinear()
+  .domain([-3, -1.2, 0, 1.2, 3])
+  .range([cVar('--down-strong'), cVar('--down-mid'), cVar('--neutral'), cVar('--up-mid'), cVar('--up-strong')])
+  .clamp(true);
+
+// ---------- 범례 그라디언트 ----------
+const legendEl = document.getElementById('legend-gradient');
+const stops = d3.range(-3, 3.01, 0.5).map(v => `${colorScale(v)} ${((v+3)/6*100).toFixed(0)}%`);
+legendEl.style.background = `linear-gradient(to right, ${stops.join(',')})`;
+
+// ---------- 트리맵 렌더링 ----------
+const wrap = document.getElementById('chart-wrap');
+const svg = d3.select('#chart');
+const tooltip = document.getElementById('tooltip');
+
+// 모니터/해상도에 따라 맵이 화면을 꽉 채우도록, 헤더 아래부터 뷰포트 끝까지로 높이를 맞춤.
+// 그 아래 범례/설명은 그만큼 밀려나서 필요하면 스크롤됩니다(의도된 동작).
+function resizeChartWrap() {
+  const top = wrap.getBoundingClientRect().top;
+  // 범례(색상 스케일 바)까지는 스크롤 없이 항상 같이 보이도록, 그 높이도 빼고 계산.
+  const legend = document.querySelector('.legend');
+  const legendStyle = legend ? getComputedStyle(legend) : null;
+  const legendSpace = legend
+    ? legend.getBoundingClientRect().height + parseFloat(legendStyle.marginTop || 0) + parseFloat(legendStyle.marginBottom || 0)
+    : 0;
+  const target = Math.max(460, window.innerHeight - top - legendSpace - 12);
+  wrap.style.height = target + 'px';
+}
+resizeChartWrap();
+
+// 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
+function positionTooltip(event) {
+  const margin = 16;
+  const rect = tooltip.getBoundingClientRect();
+  let left = event.clientX + margin;
+  let top = event.clientY + margin;
+  if (left + rect.width > window.innerWidth) {
+    left = event.clientX - rect.width - margin;
+  }
+  if (top + rect.height > window.innerHeight) {
+    top = event.clientY - rect.height - margin;
+  }
+  tooltip.style.left = Math.max(4, left) + 'px';
+  tooltip.style.top = Math.max(4, top) + 'px';
+}
+
+function render() {
+  if (!DATA) return; // 아직 데이터 로드 전
+  wrap.querySelectorAll('.center-msg').forEach(n => n.remove());
+  const width = wrap.clientWidth;
+  const height = wrap.clientHeight;
+  svg.attr('width', width).attr('height', height).selectAll('*').remove();
+
+  const root = d3.hierarchy(DATA)
+    .sum(d => d.marketCap || 0)
+    .sort((a, b) => b.value - a.value);
+
+  const SECTOR_HEADER_H = 22;
+  const INDUSTRY_HEADER_H = 15;
+
+  d3.treemap()
+    .size([width, height])
+    // depth 0(root→섹터) / 1(섹터→업종) / 2(업종→종목) 별로 여백을 다르게 줘서
+    // 섹터 헤더는 넉넉하게, 업종 헤더는 좁게, 종목 사이는 거의 붙게 만듭니다.
+    // paddingTop(d)는 "d 박스 안에 자식을 배치하기 전에 d의 맨 위에 비워둘 라벨 공간"이라
+    // 섹터 라벨 공간은 섹터 노드(depth 1)에, 업종 라벨 공간은 업종 노드(depth 2)에 줘야 합니다.
+    .paddingOuter(d => (d.depth === 0 ? 4 : d.depth === 1 ? 2 : 1))
+    .paddingTop(d => (d.depth === 0 ? 0 : d.depth === 1 ? SECTOR_HEADER_H : INDUSTRY_HEADER_H))
+    .paddingInner(d => (d.depth === 0 ? 3 : d.depth === 1 ? 2 : 1))
+    .tile(d3.treemapSquarify.ratio(1.4))
+    (root);
+
+  const allNodes = root.descendants();
+  const sectorNodes = allNodes.filter(d => d.depth === 1);
+  const industryNodes = allNodes.filter(d => d.depth === 2);
+  const leaves = root.leaves();
+
+  // 섹터(depth 1) 배경 + 헤더 띠 + 라벨 — 굵고 큰 대문자
+  const sectors = svg.selectAll('.sector')
+    .data(sectorNodes)
+    .join('g')
+    .attr('class', 'sector');
+
+  // 업종 이름이 길어서 박스 폭을 넘으면 옆 칸까지 침범하지 않도록, 그룹 전체를 자기 박스로 클리핑
+  sectors.each(function(d, i) {
+    d3.select(this).append('clipPath')
+      .attr('id', `sector-clip-${i}`)
+      .append('rect')
+      .attr('x', d.x0).attr('y', d.y0)
+      .attr('width', d.x1 - d.x0)
+      .attr('height', d.y1 - d.y0);
+  });
+  sectors.attr('clip-path', (d, i) => `url(#sector-clip-${i})`);
+
+  sectors.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => d.y1 - d.y0)
+    .attr('fill', 'none')
+    .attr('stroke', cVar('--grid'))
+    .attr('stroke-width', 1.5);
+
+  // 라벨 뒤에 배경 띠를 깔아서, 라벨이 그 아래 종목 박스 색상과 겹쳐 안 보이는 걸 방지
+  sectors.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => Math.min(SECTOR_HEADER_H, d.y1 - d.y0))
+    .attr('fill', 'rgba(8,11,15,0.6)');
+
+  sectors.append('text')
+    .attr('class', 'sector-label')
+    .attr('x', d => d.x0 + 5)
+    .attr('y', d => d.y0 + 15)
+    .text(d => ((d.x1 - d.x0) < 55 ? '' : d.data.name));
+
+  // 업종(depth 2) 배경 + 헤더 띠 + 라벨 — 작고 옅은 대문자
+  const industries = svg.selectAll('.industry')
+    .data(industryNodes)
+    .join('g')
+    .attr('class', 'industry');
+
+  industries.each(function(d, i) {
+    d3.select(this).append('clipPath')
+      .attr('id', `industry-clip-${i}`)
+      .append('rect')
+      .attr('x', d.x0).attr('y', d.y0)
+      .attr('width', d.x1 - d.x0)
+      .attr('height', d.y1 - d.y0);
+  });
+  industries.attr('clip-path', (d, i) => `url(#industry-clip-${i})`);
+
+  industries.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => d.y1 - d.y0)
+    .attr('fill', 'none')
+    .attr('stroke', cVar('--grid'))
+    .attr('stroke-width', 0.75);
+
+  industries.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => Math.min(INDUSTRY_HEADER_H, d.y1 - d.y0))
+    .attr('fill', 'rgba(8,11,15,0.45)');
+
+  industries.append('text')
+    .attr('class', 'industry-label')
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 11)
+    .text(d => ((d.x1 - d.x0) < 48 || (d.y1 - d.y0) < 22 ? '' : d.data.name));
+
+  // 종목(leaf) 셀 — 색상 채우기 + 정중앙 정렬 텍스트
+  const cell = svg.selectAll('.cell')
+    .data(leaves)
+    .join('g')
+    .attr('class', 'cell')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+  cell.append('rect')
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0))
+    .attr('fill', d => colorScale(d.data.change));
+
+  cell.each(function(d, i) {
+    const w = d.x1 - d.x0, h = d.y1 - d.y0;
+    const g = d3.select(this);
+    if (w < 20 || h < 16) return; // 너무 작은 박스는 텍스트 생략
+
+    // 폰트가 커지면서 박스 밖으로 글자가 삐져나갈 수 있어 셀 단위로 클리핑
+    const clipId = `cell-clip-${i}`;
+    g.append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('width', w)
+      .attr('height', h);
+    g.attr('clip-path', `url(#${clipId})`);
+
+    const cx = w / 2;
+    const maxTextWidth = Math.max(0, w - 8); // 좌우 여백 4px씩
+    const minSide = Math.min(w, h);
+    const MIN_TICKER_FS = 7;
+
+    // 1) 박스 크기 기준 후보 폰트로 일단 그려본 뒤, 실제 렌더 폭을 측정해서
+    //    박스보다 넓으면 딱 맞게 줄인다. 그래도 최소 크기 밑으로 내려가면 라벨을 생략.
+    let tickerFs = Math.max(8, Math.min(34, minSide / 3.2));
+    const tickerText = g.append('text')
+      .attr('class', 'ticker')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#F4F6F8')
+      .attr('font-size', tickerFs)
+      .text(d.data.name);
+
+    const tickerWidth = tickerText.node().getBBox().width;
+    if (tickerWidth > maxTextWidth && maxTextWidth > 0) {
+      const neededFs = tickerFs * (maxTextWidth / tickerWidth);
+      if (neededFs < MIN_TICKER_FS) {
+        tickerText.remove();
+        return; // 억지로 구겨넣지 않고 이 박스는 색상만 표시
+      }
+      tickerFs = neededFs;
+      tickerText.attr('font-size', tickerFs);
+    }
+
+    // 2) 등락률 — 티커 크기에 딸려가지 않고 박스 크기 기준으로 독립 산정
+    //    (티커가 길어서 많이 줄어들어도 등락률 문자열은 항상 짧으니 따로 더 크게 표시 가능)
+    let pctFs = Math.max(8, Math.min(20, minSide / 4.6));
+    const showPct = h > tickerFs + pctFs + 14;
+    let pctText = null;
+    if (showPct) {
+      pctText = g.append('text')
+        .attr('class', 'pct')
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(244,246,248,0.92)')
+        .attr('font-size', pctFs)
+        .text(`${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%`);
+      const pctWidth = pctText.node().getBBox().width;
+      if (pctWidth > maxTextWidth && maxTextWidth > 0) {
+        pctFs = Math.max(7, pctFs * (maxTextWidth / pctWidth));
+        pctText.attr('font-size', pctFs);
+      }
+    }
+
+    // 3) 최종 확정된 크기 기준으로 세로 위치 배치
+    if (pctText) {
+      const blockH = tickerFs + pctFs + 4;
+      const tickerY = h / 2 - blockH / 2 + tickerFs * 0.85;
+      const pctY = tickerY + pctFs + 4;
+      tickerText.attr('x', cx).attr('y', tickerY);
+      pctText.attr('x', cx).attr('y', pctY);
+    } else {
+      tickerText.attr('x', cx).attr('y', h / 2 + tickerFs * 0.35);
+    }
+  });
+
+  cell.on('mousemove', (event, d) => {
+    tooltip.style.display = 'block';
+    tooltip.innerHTML = `
+      <div class="tt-name">${d.data.name} · ${d.data.full}</div>
+      <div class="tt-row"><span>현재가</span><span>${d.data.price != null ? '$' + d.data.price.toFixed(2) : '-'}</span></div>
+      <div class="tt-row"><span>등락률</span><span>${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%</span></div>
+      <div class="tt-row"><span>서브 업종</span><span>${d.parent.data.name}</span></div>
+      <div class="tt-row"><span>섹터</span><span>${d.parent.parent.data.name}</span></div>
+    `;
+    positionTooltip(event);
+  }).on('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+}
+
+// 웹폰트가 로드되기 전에 측정하면 글자 폭 계산이 틀어질 수 있어, 폰트 로드 후 첫 렌더링을 시작합니다.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => loadHeatmap(false));
+} else {
+  loadHeatmap(false);
+}
+window.addEventListener('resize', () => { resizeChartWrap(); render(); });
+</script>
+
+</body>
+</html>
