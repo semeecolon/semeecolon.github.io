@@ -58,7 +58,7 @@
   #chart-wrap {
     position: relative;
     width: 100%;
-    height: 620px;
+    min-height: 460px;
   }
   svg { display: block; }
   .cell rect {
@@ -406,6 +406,21 @@ const wrap = document.getElementById('chart-wrap');
 const svg = d3.select('#chart');
 const tooltip = document.getElementById('tooltip');
 
+// 모니터/해상도에 따라 맵이 화면을 꽉 채우도록, 헤더 아래부터 뷰포트 끝까지로 높이를 맞춤.
+// 그 아래 범례/설명은 그만큼 밀려나서 필요하면 스크롤됩니다(의도된 동작).
+function resizeChartWrap() {
+  const top = wrap.getBoundingClientRect().top;
+  // 범례(색상 스케일 바)까지는 스크롤 없이 항상 같이 보이도록, 그 높이도 빼고 계산.
+  const legend = document.querySelector('.legend');
+  const legendStyle = legend ? getComputedStyle(legend) : null;
+  const legendSpace = legend
+    ? legend.getBoundingClientRect().height + parseFloat(legendStyle.marginTop || 0) + parseFloat(legendStyle.marginBottom || 0)
+    : 0;
+  const target = Math.max(460, window.innerHeight - top - legendSpace - 12);
+  wrap.style.height = target + 'px';
+}
+resizeChartWrap();
+
 // 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
 function positionTooltip(event) {
   const margin = 16;
@@ -461,6 +476,17 @@ function render() {
     .join('g')
     .attr('class', 'sector');
 
+  // 업종 이름이 길어서 박스 폭을 넘으면 옆 칸까지 침범하지 않도록, 그룹 전체를 자기 박스로 클리핑
+  sectors.each(function(d, i) {
+    d3.select(this).append('clipPath')
+      .attr('id', `sector-clip-${i}`)
+      .append('rect')
+      .attr('x', d.x0).attr('y', d.y0)
+      .attr('width', d.x1 - d.x0)
+      .attr('height', d.y1 - d.y0);
+  });
+  sectors.attr('clip-path', (d, i) => `url(#sector-clip-${i})`);
+
   sectors.append('rect')
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)
@@ -489,6 +515,16 @@ function render() {
     .data(industryNodes)
     .join('g')
     .attr('class', 'industry');
+
+  industries.each(function(d, i) {
+    d3.select(this).append('clipPath')
+      .attr('id', `industry-clip-${i}`)
+      .append('rect')
+      .attr('x', d.x0).attr('y', d.y0)
+      .attr('width', d.x1 - d.x0)
+      .attr('height', d.y1 - d.y0);
+  });
+  industries.attr('clip-path', (d, i) => `url(#industry-clip-${i})`);
 
   industries.append('rect')
     .attr('x', d => d.x0)
@@ -616,7 +652,7 @@ if (document.fonts && document.fonts.ready) {
 } else {
   loadIndex('ALL');
 }
-window.addEventListener('resize', render);
+window.addEventListener('resize', () => { resizeChartWrap(); render(); });
 </script>
 
 </body>
