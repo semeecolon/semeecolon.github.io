@@ -435,10 +435,17 @@ function render() {
 
   d3.treemap()
     .size([width, height])
-    // depth 0(root→섹터) / 1(섹터→업종) / 2(업종→종목) 별로 여백을 다르게 줘서
-    // 섹터 헤더는 넉넉하게, 업종 헤더는 좁게, 종목 사이는 거의 붙게 만듭니다.
+  // depth 0(root→섹터) / 1(섹터→업종) / 2(업종→종목) 별로 여백을 다르게 줘서
+  // 섹터 헤더는 넉넉하게, 업종 헤더는 좁게, 종목 사이는 거의 붙게 만듭니다.
+  // paddingTop(d)는 "d 박스 안에 자식을 배치하기 전에 d의 맨 위에 비워둘 라벨 공간"이라
+  // 섹터 라벨 공간은 섹터 노드(depth 1)에, 업종 라벨 공간은 업종 노드(depth 2)에 줘야 합니다.
+  const SECTOR_HEADER_H = 22;
+  const INDUSTRY_HEADER_H = 15;
+
+  d3.treemap()
+    .size([width, height])
     .paddingOuter(d => (d.depth === 0 ? 4 : d.depth === 1 ? 2 : 1))
-    .paddingTop(d => (d.depth === 0 ? 22 : d.depth === 1 ? 15 : 0))
+    .paddingTop(d => (d.depth === 0 ? 0 : d.depth === 1 ? SECTOR_HEADER_H : INDUSTRY_HEADER_H))
     .paddingInner(d => (d.depth === 0 ? 3 : d.depth === 1 ? 2 : 1))
     .tile(d3.treemapSquarify.ratio(1.4))
     (root);
@@ -448,7 +455,7 @@ function render() {
   const industryNodes = allNodes.filter(d => d.depth === 2);
   const leaves = root.leaves();
 
-  // 섹터(depth 1) 배경 + 라벨 — 굵고 큰 대문자
+  // 섹터(depth 1) 배경 + 헤더 띠 + 라벨 — 굵고 큰 대문자
   const sectors = svg.selectAll('.sector')
     .data(sectorNodes)
     .join('g')
@@ -463,13 +470,21 @@ function render() {
     .attr('stroke', cVar('--grid'))
     .attr('stroke-width', 1.5);
 
+  // 라벨 뒤에 배경 띠를 깔아서, 라벨이 그 아래 종목 박스 색상과 겹쳐 안 보이는 걸 방지
+  sectors.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => Math.min(SECTOR_HEADER_H, d.y1 - d.y0))
+    .attr('fill', 'rgba(8,11,15,0.6)');
+
   sectors.append('text')
     .attr('class', 'sector-label')
     .attr('x', d => d.x0 + 5)
     .attr('y', d => d.y0 + 15)
     .text(d => ((d.x1 - d.x0) < 55 ? '' : d.data.name));
 
-  // 업종(depth 2) 배경 + 라벨 — 작고 옅은 대문자
+  // 업종(depth 2) 배경 + 헤더 띠 + 라벨 — 작고 옅은 대문자
   const industries = svg.selectAll('.industry')
     .data(industryNodes)
     .join('g')
@@ -483,6 +498,13 @@ function render() {
     .attr('fill', 'none')
     .attr('stroke', cVar('--grid'))
     .attr('stroke-width', 0.75);
+
+  industries.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => Math.min(INDUSTRY_HEADER_H, d.y1 - d.y0))
+    .attr('fill', 'rgba(8,11,15,0.45)');
 
   industries.append('text')
     .attr('class', 'industry-label')
