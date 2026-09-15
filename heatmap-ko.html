@@ -219,7 +219,7 @@
 // 미국판(sp500-heatmap.html)과 같은 Worker를 공유합니다. ?country=kr&market=ALL|KOSPI|KOSDAQ
 // ============================================================
 const PROXY_BASE = "https://stock-heatmap.semeecolon.workers.dev/";
-const PAGES = 3; // 시총 상위 3페이지(최대 300종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=8).
+const PAGES = 2; // 시총 상위 2페이지(최대 200종목). 필요시 늘리세요 (Worker 쪽 MAX_PAGES=12).
 
 // 박스 크기 산정에 쓰는 지수. 1 = 시총 그대로(쏠림 심함), 0.5 = 제곱근(너무 납작해짐).
 // 그 사이 값으로 압축 정도를 조절합니다. 1에 가까울수록 시총 차이가 더 크게 드러납니다.
