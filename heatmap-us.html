@@ -422,6 +422,16 @@ function resizeChartWrap() {
 resizeChartWrap();
 
 // 화면 오른쪽/아래로 넘칠 것 같으면 반대편(왼쪽/위)으로 붙여서 항상 뷰포트 안에 보이도록 함.
+// 달러 시가총액 포맷 (원화의 조/억처럼 큰 단위를 축약, 서구식 1000단위 K/M/B/T 사용)
+function formatUsd(v) {
+  if (v == null) return '-';
+  const abs = Math.abs(v);
+  if (abs >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T(조)';
+  if (abs >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B(십억)';
+  if (abs >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M(백만)';
+  return '$' + v.toLocaleString('en-US');
+}
+
 function positionTooltip(event) {
   const margin = 16;
   const rect = tooltip.getBoundingClientRect();
@@ -637,6 +647,7 @@ function render() {
       <div class="tt-name">${d.data.name} · ${d.data.full}</div>
       <div class="tt-row"><span>현재가</span><span>${d.data.price != null ? '$' + d.data.price.toFixed(2) : '-'}</span></div>
       <div class="tt-row"><span>등락률</span><span>${d.data.change >= 0 ? '+' : ''}${d.data.change.toFixed(2)}%</span></div>
+      <div class="tt-row"><span>시가총액</span><span>${formatUsd(d.data.marketCap)}</span></div>
       <div class="tt-row"><span>업종</span><span>${d.parent.data.name}</span></div>
       <div class="tt-row"><span>섹터</span><span>${d.parent.parent.data.name}</span></div>
     `;
