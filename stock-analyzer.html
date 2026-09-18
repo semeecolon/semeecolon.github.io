@@ -476,7 +476,7 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
       </div>
       <div class="field f-preset">
         <label for="presetBtn">종목 프리셋</label>
-        <button type="button" class="preset-btn" id="presetBtn"
+        <button type="button" class="preset-btn" id="presetBtn" role="combobox"
                 aria-haspopup="listbox" aria-expanded="false" aria-controls="presetList"><span>선택…</span></button>
         <ul class="combo-list" id="presetList" role="listbox" aria-label="종목 프리셋"></ul>
       </div>
@@ -1110,9 +1110,9 @@ $("swapBtn").addEventListener("click", function(){
   function closePreset(){
     list.classList.remove("open");
     btn.setAttribute("aria-expanded", "false");
-    btn.removeAttribute("aria-activedescendant");
     presetOpen = false;
     presetIdx = -1;
+    markPreset();   // .on/aria-selected 가 방향키로 지목했던 항목에 남지 않도록 초기화까지 반영
   }
   function choosePreset(i){
     var pair = TICKER_PAIR_PRESETS[i];
