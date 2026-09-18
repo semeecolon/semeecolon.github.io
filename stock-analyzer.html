@@ -1836,8 +1836,11 @@ function summaryRowHtml(k){
     // +면 위쪽이, -면 아래쪽이 진하도록 한다(진한 쪽 0.22 / 옅은 쪽 0.02 — 평균이 예전
     // 단색 농도였던 0.12 와 같아 전체적인 진하기 인상은 그대로 유지된다).
     // pct 가 없으면(원래는 항상 있어야 하지만 외부 데이터라 장담 못 한다) 비교 자체가
-    // 의미 없으니 강조하지 않는다.
-    var bigMove = chg && vol && chg.pct != null && Math.abs(chg.pct) > vol.sd;
+    // 의미 없으니 강조하지 않는다. NaN/Infinity 는 정상적인 JSON 으로는 나올 수 없지만
+    // (JSON.stringify 가 둘 다 null 로 만든다) 다른 경로로 섞여 들어와도 ">" 비교를
+    // 그대로 통과해 버리므로(Infinity > sd, NaN 비교는 항상 false 라 반대로 안 걸릴
+    // 수도 있음) isFinite 로 걸러 잘못된 강조·툴팁 표시를 막는다.
+    var bigMove = chg && vol && chg.pct != null && isFinite(chg.pct) && isFinite(vol.sd) && Math.abs(chg.pct) > vol.sd;
     var curPrice = d.curPrice != null ? d.curPrice : d.lastClose;
     var bigMoveBg = null;
     if (bigMove){
