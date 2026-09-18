@@ -88,16 +88,26 @@ header p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.6;}
   grid-template-columns:minmax(0,.5fr) auto minmax(0,.5fr) minmax(0,1fr) minmax(0,314px) auto;
   gap:12px 14px;align-items:end;
 }
-/* 종목 프리셋 — 종목 A·B 입력창과 같은 모양으로 맞춘 select */
-.f-preset select{
-  width:100%;font-family:'IBM Plex Mono', monospace;font-size:13px;
+/* 종목 프리셋 — 종목 A·B 입력창과 같은 모양으로 맞춘 버튼 + 커스텀 목록(.combo-list 재사용).
+   네이티브 select 는 안드로이드(삼성 인터넷 등)에서 change 핸들러가 값을 건드리면 선택
+   목록이 닫히지 않고 남는 기기별 버그가 있어(핸들러 지연·디바운스로도 해결 안 됨),
+   종목 A·B 콤보와 같은 방식의 순수 DOM 목록으로 교체했다 — OS 네이티브 오버레이 자체가
+   없으니 이 버그 부류가 원천적으로 발생하지 않는다. */
+.f-preset{position:relative;}
+.preset-btn{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  width:100%;font-family:'IBM Plex Mono', monospace;font-size:13px;text-align:left;
   padding:9px 10px;border:1px solid var(--border);border-radius:7px;
   background:var(--panel-2);color:var(--ink);cursor:pointer;
+  overflow:hidden;
   /* min-height 로 바닥을 깔아 iOS 에서 종목 A·B 입력창보다 납작해지는 것을 막는다
      (날짜 입력에 쓴 것과 같은 처치 — .date-pair input[type=date] 참고) */
   min-height:36px;
 }
-.f-preset select:focus-visible{outline:2px solid var(--a);outline-offset:2px;}
+.preset-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.preset-btn::after{content:"▾";flex:0 0 auto;color:var(--mute);font-size:11px;line-height:1;}
+.preset-btn:hover{border-color:var(--ink-soft);}
+.preset-btn:focus-visible{outline:2px solid var(--a);outline-offset:2px;}
 /* 시작일·종료일. 데스크톱에서는 이 묶음이 314px 컬럼 안에 들어가므로 최소폭을 140px 로 둔다
    (160px 이면 2열이 314px 를 넘어 항상 1열로 무너진다). 모바일 최소폭은 아래 미디어쿼리 참고. */
 .date-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
@@ -370,9 +380,9 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
 
   /* iOS Safari 는 포커스된 입력창의 글자가 16px 미만이면 페이지를 자동 확대한다.
      16px 이상이면 확대하지 않으므로 모바일 입력창을 16px 로 맞춘다.
-     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다. select 도 같은 확대
-     문제가 있어 종목 프리셋 select 도 함께 맞춘다) */
-  .field input, .f-preset select{font-size:16px;}
+     (날짜 입력도 .field 안에 있어 이 규칙 하나로 함께 적용된다. 종목 프리셋은 버튼이라
+     확대 문제는 없지만, 다른 입력창과 글자 크기를 맞춰 시각적으로 통일한다) */
+  .field input, .f-preset .preset-btn{font-size:16px;}
   /* 16px 글자로는 iOS 표기("2026. 8. 10.")에 약 116px 이 필요하다. 그만한 폭이 안 나오는
      좁은 화면(375px 이하)에서는 잘리는 대신 한 열로 떨어지도록 최소폭을 올린다. */
   .date-pair{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
@@ -465,8 +475,10 @@ footer code{font-family:'IBM Plex Mono',monospace;background:var(--panel);
         </div>
       </div>
       <div class="field f-preset">
-        <label for="tickerPreset">종목 프리셋</label>
-        <select id="tickerPreset"><option value="">선택…</option></select>
+        <label for="presetBtn">종목 프리셋</label>
+        <button type="button" class="preset-btn" id="presetBtn" role="combobox"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="presetList"><span>선택…</span></button>
+        <ul class="combo-list" id="presetList" role="listbox" aria-label="종목 프리셋"></ul>
       </div>
       <!-- 두 날짜는 한 묶음. 폭이 모자라면 auto-fit 이 알아서 세로로 떨어뜨린다. -->
       <div class="date-pair f-dates">
@@ -1059,34 +1071,96 @@ $("swapBtn").addEventListener("click", function(){
 
 // 종목 프리셋 — 고르면 A·B 입력창에 그대로 순서대로 채운다(선택 하나로 chooseCombo 를
 // 두 번 불러 개별 선택과 동일한 경로를 타게 한다 — 접미사 뱃지 갱신·설정 저장까지 포함).
+// 네이티브 select 로 만들었더니 일부 안드로이드 브라우저(삼성 인터넷 등)에서 change
+// 핸들러가 값을 건드리기만 해도 선택 목록이 닫히지 않고 남는 버그가 있었고, 핸들러 지연·
+// 디바운스로도 고쳐지지 않아(오히려 깜빡임만 늘었다) 종목 A·B 콤보와 같은 순수 DOM 목록으로
+// 바꿨다 — OS 가 그리는 오버레이가 아니므로 이 버그 자체가 나올 수 없다.
 (function(){
-  var sel = $("tickerPreset");
+  var btn  = $("presetBtn");
+  var list = $("presetList");
+  var presetOpen = false, presetIdx = -1;
+
   TICKER_PAIR_PRESETS.forEach(function(pair, i){
-    var o = document.createElement("option");
-    o.value = String(i);
-    o.textContent = pair.name || (pair.a + " - " + pair.b);
-    sel.appendChild(o);
+    var li = document.createElement("li");
+    li.className = "combo-item";
+    li.setAttribute("role", "option");
+    li.id = "presetOpt" + i;
+    li.setAttribute("aria-selected", "false");
+    li.dataset.idx = String(i);
+    li.textContent = pair.name || (pair.a + " - " + pair.b);
+    list.appendChild(li);
   });
-  var presetTimer = null;
-  sel.addEventListener("change", function(){
-    var v = sel.value;
-    // change 핸들러 안에서 곧바로 다른 입력창을 건드리면(선택값 리셋만이 아니라 chooseCombo 가
-    // 하는 값 대입·배지 갱신·localStorage 저장까지) 일부 안드로이드 브라우저(삼성 인터넷 등)
-    // 에서 네이티브 선택 목록이 닫히지 않고 그대로 남는다 — 처음엔 리셋만 미뤘었는데 그걸로는
-    // 부족했다(A·B 는 바뀌는데 목록은 안 닫힘). 이 핸들러가 하는 일 전부를 다음 틱으로 미뤄
-    // change 이벤트가 완전히 끝나고 네이티브 UI 가 닫힌 뒤에만 DOM 을 건드리게 한다.
-    // select 에 포커스가 있는 채로 방향키를 연타하면 목록을 열지 않고도 change 가 짧은
-    // 간격으로 여러 번 날아올 수 있다 — 이전 타이머를 취소해 마지막 선택만 반영되게 한다.
-    if (presetTimer != null) clearTimeout(presetTimer);
-    presetTimer = setTimeout(function(){
-      presetTimer = null;
-      sel.value = "";   // 같은 항목을 다시 골라도 change 가 나도록 선택을 되돌려둔다
-      if (!v) return;   // 빈 값(placeholder)은 +v 가 0 으로 강제돼 첫 프리셋으로 오인될 수 있어 먼저 걸러낸다
-      var pair = TICKER_PAIR_PRESETS[+v];
-      if (!pair) return;
-      chooseCombo("A", pair.a);
-      chooseCombo("B", pair.b);
-    }, 50);
+  var items = list.querySelectorAll(".combo-item");
+
+  function markPreset(){
+    items.forEach(function(el, i){
+      var on = (i === presetIdx);
+      el.classList.toggle("on", on);
+      el.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    var act = presetIdx >= 0 ? items[presetIdx] : null;
+    if (act){ btn.setAttribute("aria-activedescendant", act.id); act.scrollIntoView({ block:"nearest" }); }
+    else { btn.removeAttribute("aria-activedescendant"); }
+  }
+  function openPreset(){
+    list.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+    presetOpen = true;
+  }
+  function closePreset(){
+    list.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+    presetOpen = false;
+    presetIdx = -1;
+    markPreset();   // .on/aria-selected 가 방향키로 지목했던 항목에 남지 않도록 초기화까지 반영
+  }
+  function choosePreset(i){
+    var pair = TICKER_PAIR_PRESETS[i];
+    closePreset();
+    if (!pair) return;
+    chooseCombo("A", pair.a);
+    chooseCombo("B", pair.b);
+  }
+
+  btn.addEventListener("click", function(){
+    if (presetOpen) closePreset(); else openPreset();
+  });
+  btn.addEventListener("keydown", function(e){
+    if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      if (!presetOpen) openPreset();
+      var n = items.length;
+      if (!n) return;
+      presetIdx = (e.key === "ArrowDown")
+        ? (presetIdx + 1) % n
+        : (presetIdx <= 0 ? n - 1 : presetIdx - 1);
+      markPreset();
+      return;
+    }
+    if (e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      if (presetOpen && presetIdx >= 0) choosePreset(presetIdx);
+      else if (!presetOpen) openPreset();
+      return;
+    }
+    if (e.key === "Escape") closePreset();
+  });
+  // 마우스일 때만 기본동작을 막아 버튼 포커스를 유지한다(터치에서 막으면 스크롤 제스처가 죽는다).
+  list.addEventListener("pointerdown", function(e){
+    if (e.pointerType === "mouse") e.preventDefault();
+  });
+  list.addEventListener("click", function(e){
+    var li = e.target.closest ? e.target.closest(".combo-item") : null;
+    if (!li) return;
+    e.preventDefault();
+    choosePreset(+li.dataset.idx);
+  });
+  var wrap = btn.parentNode;
+  wrap.addEventListener("focusout", function(e){
+    if (e.relatedTarget && !wrap.contains(e.relatedTarget)) closePreset();
+  });
+  document.addEventListener("pointerdown", function(e){
+    if (presetOpen && !wrap.contains(e.target)) closePreset();
   });
 })();
 
