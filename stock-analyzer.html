@@ -1832,13 +1832,29 @@ function summaryRowHtml(k){
     // 오늘 변동폭(|전일대비 %|)이 평소 일일 변동성(σ)보다 크면 "평소보다 많이 움직였다"는
     // 신호로 카드 배경에 옅은 종목 식별색(A=파랑/B=빨강 계열)을 깐다. rgba 알파를 그대로
     // 쓰면 뒤에 비치는 모눈 배경 무늬가 카드에 그대로 드러나므로(신호박스에서 이미 겪은
-    // 문제), 패널색과 섞은 불투명 색을 쓴다 — mixColor(강조색, 패널색, 0.12).
+    // 문제), 패널색과 섞은 불투명 색만 써서 그라데이션 두 끝점을 만든다. 방향성까지 담아
+    // +면 위쪽이, -면 아래쪽이 진하도록 한다(진한 쪽 0.22 / 옅은 쪽 0.02 — 평균이 예전
+    // 단색 농도였던 0.12 와 같아 전체적인 진하기 인상은 그대로 유지된다).
     // pct 가 없으면(원래는 항상 있어야 하지만 외부 데이터라 장담 못 한다) 비교 자체가
-    // 의미 없으니 강조하지 않는다.
-    var bigMove = chg && vol && chg.pct != null && Math.abs(chg.pct) > vol.sd;
+    // 의미 없으니 강조하지 않는다. NaN/Infinity 는 정상적인 JSON 으로는 나올 수 없지만
+    // (JSON.stringify 가 둘 다 null 로 만든다) 다른 경로로 섞여 들어와도 ">" 비교를
+    // 그대로 통과해 버리므로(Infinity > sd, NaN 비교는 항상 false 라 반대로 안 걸릴
+    // 수도 있음) isFinite 로 걸러 잘못된 강조·툴팁 표시를 막는다.
+    var bigMove = chg && vol && chg.pct != null && isFinite(chg.pct) && isFinite(vol.sd) && Math.abs(chg.pct) > vol.sd;
     var curPrice = d.curPrice != null ? d.curPrice : d.lastClose;
+    var bigMoveBg = null;
+    if (bigMove){
+      var swatch = cssVar(k === "A" ? "--a" : "--b");
+      var panelBg = cssVar("--panel");
+      var hiTint = mixColor(swatch, panelBg, 0.22);
+      var loTint = mixColor(swatch, panelBg, 0.02);
+      // 강조 기준 자체가 chg.pct(등락률)로 판단되므로 방향도 amount 가 아닌 pct 의 부호를
+      // 따른다 — 장 상태에 따라 amount 출처가 fulldayChange/전일종가diff 로 갈리는 chgSign
+      // 과 달리, pct 는 항상 같은 값(regularMarketChangePercent)이라 강조 기준과 일관된다.
+      bigMoveBg = "linear-gradient(to bottom, " + (chg.pct >= 0 ? hiTint + "," + loTint : loTint + "," + hiTint) + ")";
+    }
     cards.push({ lbl:"현재가", val: num(curPrice) + ccy, color: cssVar("--ink"), sub: chgText, subColor: chgColor,
-                 bg: bigMove ? mixColor(cssVar(k === "A" ? "--a" : "--b"), cssVar("--panel"), 0.12) : null,
+                 bg: bigMoveBg,
                  bgTitle: bigMove ? "오늘 변동폭(" + fx(Math.abs(chg.pct), 2) + "%)이 일일 변동성(" + fx(vol.sd, 2) + "%)보다 큽니다" : null });
   }
   if (vol){
